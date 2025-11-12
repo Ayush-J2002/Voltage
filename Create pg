@@ -1,85 +1,112 @@
 import pyvisa
 import time
 
-# --- CONFIGURATION FOR +B SEQUENCE ---
-# Based on "Power Fluctuation pattern A1"
-PLUS_B_SEQUENCE = [
-    # 1. PRE-TEST (IG_OFF)
-    #    Start at 13V.
-    {'voltage': 13.0, 'current': 10.0, 'duration': 1.0, 'output': 'ON'},
-
-    # 2. VOLTAGE DIP (IG_ON)
-    #    Drops to 12V for exactly 1 second.
-    {'voltage': 12.0, 'current': 10.0, 'duration': 1.0, 'output': 'ON'},
-
-    # 3. RECOVERY (IG_OFF)
-    #    Returns to 13V. The image says this varies (10ms-2010ms). 
-    #    We set it to 2.0s for this run.
-    {'voltage': 13.0, 'current': 10.0, 'duration': 2.0, 'output': 'ON'},
-
-    # 4. SCS_ON PHASE
-    #    Stays at 13V for 20 seconds.
-    {'voltage': 13.0, 'current': 10.0, 'duration': 20.0, 'output': 'ON'},
-
-    # 5. POST-TEST
-    #    Final 2 second hold at 13V.
-    {'voltage': 13.0, 'current': 10.0, 'duration': 2.0, 'output': 'ON'},
+# --- CONFIGURATION FOR +B (PBZ20-20) ---
+# Pattern A1: 13V -> 12V -> 13V
+SEQUENCE_STEPS = [
+    # Step 1: Start at 13V
+    {'voltage': 13.0, 'current': 20.0, 'time': 1.0},
     
-    # 6. FINISH
-    #    Turn off output at the end (Safety)
-    {'voltage': 0.0,  'current': 0.0,  'duration': 0.1, 'output': 'OFF'}
+    # Step 2: Drop to 12V (IG_ON)
+    {'voltage': 12.0, 'current': 20.0, 'time': 1.0},
+
+    # Step 3: Return to 13V (Recovery)
+    {'voltage': 13.0, 'current': 20.0, 'time': 2.0},
+
+    # Step 4: Maintain 13V (SCS_ON)
+    {'voltage': 13.0, 'current': 20.0, 'time': 20.0},
+
+    # Step 5: End Buffer
+    {'voltage': 13.0, 'current': 20.0, 'time': 2.0}
 ]
 
-# --- SETTINGS ---
-# Update this with the VISA address of the power supply acting as "+B"
-TARGET_RESOURCE = "USB0::0x0B3E::0x1012::EZ002642::INSTR" 
-PROGRAM_NAME = "Pattern_A1_PlusB"
+# UPDATE THIS ADDRESS
+TARGET_RESOURCE = "USB0::0x0B3E::0x1012::EZ002642::INSTR"
 
-def send(inst, cmd):
-    print(f"Sending: {cmd}")
-    inst.write(cmd)
-    time.sleep(0.1)
-
-def create_sequence(resource, prog_name, steps):
+def setup_pbz_program():
     try:
         rm = pyvisa.ResourceManager()
-        with rm.open_resource(resource) as pps:
-            pps.timeout = 5000
-            print(f"Connected to +B Supply: {pps.query('*IDN?').strip()}")
+        with rm.open_resource(TARGET_RESOURCE) as pbz:
+            pbz.timeout = 5000
+            print(f"Connected to: {pbz.query('*IDN?').strip()}")
+            
+            # 1. PREPARATION
+            # Reset the instrument to a known state (Optional, be careful)
+            # pbz.write("*RST") 
+            
+            # 2. SELECT PROGRAM 1 (Fixed Slot)
+            # The PBZ uses "PRG01" through "PRG16"
+            print("Selecting Program 1 (PRG01)...")
+            pbz.write(':PROG:NAME "PRG01"')
+            time.sleep(0.5)
 
-            # 1. DELETE EXISTING PROGRAM (To avoid 'Duplicate Name' error)
-            try:
-                pps.write(f':PROG:DEL "{prog_name}"')
-                print(f"Old program '{prog_name}' deleted.")
-            except:
-                pass
+            # 3. EDIT PROGRAM SETTINGS
+            print("Configuring Program Header...")
+            # Set Title to "Pattern A1"
+            pbz.write(':PROG:TITL "Pattern A1"')
+            # Set Loop to 1 (Run once)
+            pbz.write(':PROG:LOOP 1')
+            # Set Mode to CV (Constant Voltage)
+            pbz.write(':FUNC:MODE CV')
+            
+            # 4. DEFINE STEPS
+            # PBZ Step Syntax: 
+            # :PROG:STEP <step_num>, <voltage>, <current_limit>, <time>, <trig_out>, <status>
+            # We will overwrite existing steps.
+            
+            print("Uploading Steps...")
+            count = len(SEQUENCE_STEPS)
+            
+            # First, tell the PBZ how many steps we are going to use
+            pbz.write(f':PROG:STEP:COUN {count}')
 
-            # 2. CREATE NEW PROGRAM
-            send(pps, f':PROG:CRE "{prog_name}", "Pattern A1 +B"')
-            send(pps, f':PROG:NAME "{prog_name}"') # Select it for editing
-
-            # 3. UPLOAD STEPS
-            print("Uploading +B Sequence steps...")
-            for i, step in enumerate(steps):
+            for i, step in enumerate(SEQUENCE_STEPS):
                 step_num = i + 1
+                v = step['voltage']
+                c = step['current'] # Current limit (e.g., 20A max)
+                t = step['time']
                 
-                # COMMAND FORMAT (Assuming CV Mode):
-                # PROG:STEP <N>, LEV, <Volts>, TIME, <Seconds>, OUTP, <ON/OFF>
+                # Trig Output: OFF(0), ON(1) -> Usually 0 unless you need to trigger other devices
+                # Status Output: OFF(0), ON(1) -> Usually 1 (ON) to keep output active
                 
-                # Note: If your device requires Current Limit in the step, add 'CURR, {step["current"]}'
-                cmd = (f':PROG:STEP {step_num}, '
-                       f'LEV, {step["voltage"]}, '
-                       f'TIME, {step["duration"]}, '
-                       f'OUTP, {step["output"]}')
-                
-                send(pps, cmd)
+                # Send the step data
+                cmd = f':PROG:STEP {step_num}, {v}, {c}, {t}, 0, 1'
+                print(f"  Step {step_num}: {v}V for {t}s")
+                pbz.write(cmd)
+                time.sleep(0.1)
 
-            # 4. SAVE
-            send(pps, ':PROG:SAVE')
-            print(f"Successfully created +B Program: '{prog_name}'")
+            # 5. SAVE THE PROGRAM
+            pbz.write(':PROG:SAVE')
+            print("Program Saved.")
+
+            # 6. RUN THE PROGRAM (TEST)
+            print("--- STARTING TEST OUTPUT ---")
+            
+            # IMPORTANT: For PBZ, you must enable output manually first!
+            pbz.write('OUTP 1') 
+            time.sleep(1.0) # Wait for voltage to stabilize
+            
+            # Execute the sequence (Run Program 1)
+            pbz.write(':PROG:EXEC:STAT RUN')
+            print("Sequence Triggered. Check Output!")
+
+            # Monitor until finished
+            while True:
+                status = pbz.query(':PROG:EXEC:STAT?').strip()
+                if "STOP" in status:
+                    print("Sequence Finished.")
+                    break
+                time.sleep(1)
+            
+            # Turn off output after test
+            pbz.write('OUTP 0')
+            print("Output OFF.")
 
     except Exception as e:
         print(f"Error: {e}")
+        # Specific check for common PBZ syntax errors
+        if "-100" in str(e):
+            print(" > This might be a command syntax error. Check if your PBZ firmware expects different Step parameters.")
 
 if __name__ == "__main__":
-    create_sequence(TARGET_RESOURCE, PROGRAM_NAME, PLUS_B_SEQUENCE)
+    setup_pbz_program()
