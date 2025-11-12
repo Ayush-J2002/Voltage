@@ -1,0 +1,86 @@
+import pyvisa
+import time
+
+# --- CONFIGURATION: DEFINING YOUR TEST RECIPE ---
+# You can change these steps to whatever you need.
+# format: {'voltage': V, 'current': A, 'duration': Seconds}
+TEST_SEQUENCE = [
+    {'voltage': 12.0, 'current': 5.0, 'duration': 2.0, 'output': 'ON'},  # Step 1: Crank
+    {'voltage': 10.5, 'current': 2.0, 'duration': 5.0, 'output': 'ON'},  # Step 2: Steady
+    {'voltage': 0.0,  'current': 0.0, 'duration': 1.0, 'output': 'OFF'}, # Step 3: Rest
+    {'voltage': 14.0, 'current': 5.0, 'duration': 3.0, 'output': 'ON'},  # Step 4: Charging
+]
+
+# Target Device (Pick one to test first)
+TARGET_RESOURCE = "USB0::0x0B3E::0x1012::EZ002640::INSTR"
+PROGRAM_NAME = "Python_Test"  # Name of the program to create on the device
+
+def send(inst, cmd):
+    """Helper to send command and print it"""
+    print(f"Sending: {cmd}")
+    inst.write(cmd)
+    time.sleep(0.1) # Short delay to prevent buffer overflow
+
+def create_sequence(resource, prog_name, steps):
+    try:
+        rm = pyvisa.ResourceManager()
+        with rm.open_resource(resource) as pps:
+            pps.timeout = 5000
+            print(f"Connected to {pps.query('*IDN?').strip()}")
+
+            # 1. DELETE OLD PROGRAM (If it exists)
+            # We try to delete it so we don't get "Name Duplicate" errors
+            try:
+                pps.write(f':PROG:DEL "{prog_name}"')
+                print(f"Deleted old program '{prog_name}'")
+            except:
+                pass # It probably didn't exist, which is fine
+
+            # 2. CREATE NEW PROGRAM
+            # Syntax: PROG:CRE "Name", "Description"
+            send(pps, f':PROG:CRE "{prog_name}", "Created by Python"')
+            
+            # 3. ENTER EDIT MODE
+            # This command usually selects the program for editing
+            # For some models, creating it automatically selects it.
+            send(pps, f':PROG:NAME "{prog_name}"')
+
+            # 4. DEFINE LOOP (Run once)
+            send(pps, f':PROG:LOOP 1')
+
+            # 5. UPLOAD STEPS
+            # Kikusui PLZ-5W/PWR-01 Step Syntax usually looks like:
+            # PROG:STEP <step_num>, LEV, <val>, TIME, <sec>, LOAD, <on/off>
+            
+            print("Uploading steps...")
+            for i, step in enumerate(steps):
+                step_num = i + 1
+                volts = step['voltage']
+                amps = step['current'] # Used if in CC mode or as limit
+                duration = step['duration']
+                out_state = step['output']
+
+                # Construct the command string
+                # Note: You may need to adjust 'LEV' to 'VOLT' or 'CURR' depending on your mode (CV vs CC)
+                # This example assumes Constant Voltage (CV) mode logic for a Power Supply
+                
+                # COMMAND FORMAT: PROG:STEP <N>, LEV, <V>, TIME, <S>, OUTP, <ON/OFF>
+                cmd = (f':PROG:STEP {step_num}, '
+                       f'LEV, {volts}, '
+                       f'TIME, {duration}, '
+                       f'OUTP, {out_state}')
+                
+                send(pps, cmd)
+
+            # 6. SAVE PROGRAM
+            send(pps, ':PROG:SAVE')
+            print(f"Successfully created program '{prog_name}' with {len(steps)} steps.")
+
+    except pyvisa.VisaIOError as e:
+        print(f"Communication Error: {e}")
+    except Exception as e:
+        print(f"Error: {e}")
+
+if __name__ == "__main__":
+    print("Starting Program Creation...")
+    create_sequence(TARGET_RESOURCE, PROGRAM_NAME, TEST_SEQUENCE)
