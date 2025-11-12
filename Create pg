@@ -1,112 +1,82 @@
 import pyvisa
 import time
 
-# --- CONFIGURATION FOR +B (PBZ20-20) ---
-# Pattern A1: 13V -> 12V -> 13V
-SEQUENCE_STEPS = [
-    # Step 1: Start at 13V
-    {'voltage': 13.0, 'current': 20.0, 'time': 1.0},
-    
-    # Step 2: Drop to 12V (IG_ON)
-    {'voltage': 12.0, 'current': 20.0, 'time': 1.0},
+# --- PATTERN CONFIGURATION (+B) ---
+# PBZ20-20 Step Format: Voltage(V), CurrentLimit(A), Time(s)
+# Based on Pattern A1: 13V -> 12V -> 13V
+STEPS = [
+    # Step 1: Initial State (13V)
+    {'step': 1, 'volt': 13.0, 'curr': 20.0, 'time': 1.0},
 
-    # Step 3: Return to 13V (Recovery)
-    {'voltage': 13.0, 'current': 20.0, 'time': 2.0},
+    # Step 2: Dip (12V for 1s)
+    {'step': 2, 'volt': 12.0, 'curr': 20.0, 'time': 1.0},
 
-    # Step 4: Maintain 13V (SCS_ON)
-    {'voltage': 13.0, 'current': 20.0, 'time': 20.0},
+    # Step 3: Recovery (13V for 2s)
+    {'step': 3, 'volt': 13.0, 'curr': 20.0, 'time': 2.0},
 
-    # Step 5: End Buffer
-    {'voltage': 13.0, 'current': 20.0, 'time': 2.0}
+    # Step 4: SCS ON (13V for 20s)
+    {'step': 4, 'volt': 13.0, 'curr': 20.0, 'time': 20.0},
+
+    # Step 5: End Buffer (13V for 2s)
+    {'step': 5, 'volt': 13.0, 'curr': 20.0, 'time': 2.0}
 ]
 
-# UPDATE THIS ADDRESS
+# UPDATE WITH YOUR PBZ ADDRESS
 TARGET_RESOURCE = "USB0::0x0B3E::0x1012::EZ002642::INSTR"
 
-def setup_pbz_program():
+def create_pbz_sequence():
     try:
         rm = pyvisa.ResourceManager()
         with rm.open_resource(TARGET_RESOURCE) as pbz:
             pbz.timeout = 5000
             print(f"Connected to: {pbz.query('*IDN?').strip()}")
-            
-            # 1. PREPARATION
-            # Reset the instrument to a known state (Optional, be careful)
-            # pbz.write("*RST") 
-            
-            # 2. SELECT PROGRAM 1 (Fixed Slot)
-            # The PBZ uses "PRG01" through "PRG16"
-            print("Selecting Program 1 (PRG01)...")
-            pbz.write(':PROG:NAME "PRG01"')
+
+            # 1. STOP ANY RUNNING SEQUENCE
+            pbz.write(':PROG:EXEC:STAT STOP')
+            pbz.write('ABORT')
             time.sleep(0.5)
 
-            # 3. EDIT PROGRAM SETTINGS
-            print("Configuring Program Header...")
-            # Set Title to "Pattern A1"
-            pbz.write(':PROG:TITL "Pattern A1"')
-            # Set Loop to 1 (Run once)
-            pbz.write(':PROG:LOOP 1')
-            # Set Mode to CV (Constant Voltage)
-            pbz.write(':FUNC:MODE CV')
+            # 2. SELECT PROGRAM 1 (PRG01)
+            # The PBZ has 16 fixed slots. We select #1.
+            print("Selecting PRG01...")
+            pbz.write(':PROG:NAME "PRG01"') 
+            time.sleep(0.2)
+
+            # 3. CONFIGURE HEADER
+            print("Configuring Header...")
+            pbz.write(':PROG:TITL "Pattern A1"') # Set Title
+            pbz.write(':PROG:LOOP 1')           # Loop 1 time
+            pbz.write(':FUNC:MODE CV')          # Constant Voltage Mode
             
-            # 4. DEFINE STEPS
-            # PBZ Step Syntax: 
-            # :PROG:STEP <step_num>, <voltage>, <current_limit>, <time>, <trig_out>, <status>
-            # We will overwrite existing steps.
+            # 4. SET STEPS using PROG:EDIT
+            # Syntax: :PROG:EDIT <Step>, <Volts>, <Amps>, <Time>, <TrigOut>, <Status>
+            # TrigOut=0 (Off), Status=1 (Output ON during step)
             
             print("Uploading Steps...")
-            count = len(SEQUENCE_STEPS)
-            
-            # First, tell the PBZ how many steps we are going to use
-            pbz.write(f':PROG:STEP:COUN {count}')
-
-            for i, step in enumerate(SEQUENCE_STEPS):
-                step_num = i + 1
-                v = step['voltage']
-                c = step['current'] # Current limit (e.g., 20A max)
-                t = step['time']
-                
-                # Trig Output: OFF(0), ON(1) -> Usually 0 unless you need to trigger other devices
-                # Status Output: OFF(0), ON(1) -> Usually 1 (ON) to keep output active
-                
-                # Send the step data
-                cmd = f':PROG:STEP {step_num}, {v}, {c}, {t}, 0, 1'
-                print(f"  Step {step_num}: {v}V for {t}s")
+            for s in STEPS:
+                cmd = f":PROG:EDIT {s['step']}, {s['volt']}, {s['curr']}, {s['time']}, 0, 1"
+                print(f"  Sending: {cmd}")
                 pbz.write(cmd)
-                time.sleep(0.1)
+                
+                # Check for errors immediately after each step
+                err = pbz.query('SYST:ERR?')
+                if "No error" not in err:
+                    print(f"  !!! ERROR on Step {s['step']}: {err.strip()}")
 
-            # 5. SAVE THE PROGRAM
-            pbz.write(':PROG:SAVE')
-            print("Program Saved.")
+            # 5. SAVE PROGRAM
+            print("Saving Program...")
+            pbz.write(':PROG:SAVE') 
+            time.sleep(1.0) # Give it time to save to memory
 
-            # 6. RUN THE PROGRAM (TEST)
-            print("--- STARTING TEST OUTPUT ---")
-            
-            # IMPORTANT: For PBZ, you must enable output manually first!
-            pbz.write('OUTP 1') 
-            time.sleep(1.0) # Wait for voltage to stabilize
-            
-            # Execute the sequence (Run Program 1)
-            pbz.write(':PROG:EXEC:STAT RUN')
-            print("Sequence Triggered. Check Output!")
-
-            # Monitor until finished
-            while True:
-                status = pbz.query(':PROG:EXEC:STAT?').strip()
-                if "STOP" in status:
-                    print("Sequence Finished.")
-                    break
-                time.sleep(1)
-            
-            # Turn off output after test
-            pbz.write('OUTP 0')
-            print("Output OFF.")
+            # 6. RUN IT (Optional - Comment out if you just want to create it)
+            print("--- STARTING TEST ---")
+            pbz.write('OUTP 1')              # Turn Output ON
+            time.sleep(0.5)
+            pbz.write(':PROG:EXEC:STAT RUN') # Start Sequence
+            print("Sequence Running... (Output should be ON)")
 
     except Exception as e:
-        print(f"Error: {e}")
-        # Specific check for common PBZ syntax errors
-        if "-100" in str(e):
-            print(" > This might be a command syntax error. Check if your PBZ firmware expects different Step parameters.")
+        print(f"CRITICAL ERROR: {e}")
 
 if __name__ == "__main__":
-    setup_pbz_program()
+    create_pbz_sequence()
