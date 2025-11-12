@@ -1,41 +1,61 @@
+import time
 import pyvisa
+from multiprocessing import Process, Barrier
+from datetime import datetime, timedelta
+ 
+PPS_DEVICES = [
+    {"name": "Ignition", "visa_resource": "USB0::0x0B3E::0x1012::EZ002640::INSTR"},
+    {"name": "ACC", "visa_resource": "USB0::0x0B3E::0x1012::EZ002641::INSTR"},
+    {"name": "Battery Cycle", "visa_resource": "USB0::0x0B3E::0x1012::EZ002642::INSTR"}
+]
+ 
+def send_command(pps, command):
+    try:
+        pps.write(command + "\n")
+    except Exception as e:
+        print(f"Error sending command: {e}")
+ 
+def wait_for_program_completion(pps):
+    while True:
+        response = pps.query(":STAT:OPER:COND?")
+        if "0" in response: 
+            break
+        time.sleep(1)
+ 
+def trigger_pps_device(visa_resource, barrier, start_time):
+    try:
+        rm = pyvisa.ResourceManager()
+        with rm.open_resource(visa_resource) as pps:
+            print(f"[{pps.resource_name}] Connected to PPS")
+ 
+            barrier.wait()
+ 
+            while datetime.now() < start_time:
+                time.sleep(0.0001)
+ 
+            send_command(pps, ":PROG:EXEC:STATe RUN")
+            print(f"[{pps.resource_name}] Triggered RUN/PAUSE...")
+ 
+            wait_for_program_completion(pps)
+ 
+            send_command(pps, "OUTP OFF")
+            print(f"[{pps.resource_name}] Turned OFF.")
+ 
+    except pyvisa.VisaIOError as e:
+        print(f"Failed to connect to PPS with VISA resource {visa_resource}: {e}")
+ 
+if __name__ == "__main__":
+    barrier = Barrier(len(PPS_DEVICES))
 
-# 1. Initialize the VISA resource manager
-rm = pyvisa.ResourceManager()
+    start_time = datetime.now() + timedelta(seconds=5)
 
-# 2. Get the instrument's "address" from NI MAX
-#    It will look something like this:
-#    'USB0::0x1234::0x5678::SERIAL_NUM::INSTR'
-#    'TCPIP::192.168.1.10::INSTR'
-INSTRUMENT_ADDRESS = 'YOUR_INSTRUMENT_ADDRESS_GOES_HERE'
+    processes = []
+    for device in PPS_DEVICES:
+        process = Process(target=trigger_pps_device, args=(device["visa_resource"], barrier, start_time))
+        processes.append(process)
+        process.start()
 
-# 3. Find the "run program" command from the manual
-#    This is just an EXAMPLE, yours will be different.
-COMMAND_TO_RUN_PROGRAM = 'PROG:RUN "MY_PROGRAM"' 
-#    It could also be '*TRG' or 'OUTP 1' or 'SEQ:RUN'
-
-try:
-    # Open a connection to the instrument
-    print(f"Connecting to {INSTRUMENT_ADDRESS}...")
-    instrument = rm.open_resource(INSTRUMENT_ADDRESS)
-
-    # Set a timeout (good practice)
-    instrument.timeout = 5000  # 5 seconds
-
-    # Ask the instrument for its name (a good test)
-    identity = instrument.query('*IDN?')
-    print(f"Connected to: {identity.strip()}")
-
-    # 4. --- THIS IS THE KEY PART ---
-    #    Send the command to run your stored program
-    print(f"Sending command: {COMMAND_TO_RUN_PROGRAM}")
-    instrument.write(COMMAND_TO_RUN_PROGRAM)
-
-    print("Command sent! The program should be running.")
-
-    # Close the connection
-    instrument.close()
-
-except Exception as e:
-    print(f"An error occurred: {e}")
-
+    for process in processes:
+        process.join()
+ 
+    print("All PPS devices triggered and turned off successfully.")
