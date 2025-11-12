@@ -1,112 +1,127 @@
-import time
+    import time
 import pyvisa
 from multiprocessing import Process, Barrier
 from datetime import datetime, timedelta
  
 # 1. CONFIGURATION
-#    Added 'program_number' so you can specify which program runs on which device.
+#    Ensure 'program_number' matches the name stored in the device EXACTLY.
+#    If the device calls it "Test_A", put "Test_A" here. If it's just "6", use "6".
 PPS_DEVICES = [
     {
         "name": "Ignition", 
         "visa_resource": "USB0::0x0B3E::0x1012::EZ002640::INSTR", 
-        "program_number": 1
+        "program_name": "6"  # Changed from number to string "6"
     },
     {
         "name": "ACC", 
         "visa_resource": "USB0::0x0B3E::0x1012::EZ002641::INSTR", 
-        "program_number": 1
+        "program_name": "6"
     },
     {
         "name": "Battery Cycle", 
         "visa_resource": "USB0::0x0B3E::0x1012::EZ002642::INSTR", 
-        "program_number": 2  # Example: Battery cycle might use a different program
+        "program_name": "2" 
     }
 ]
- 
-def send_command(pps, command):
+
+def check_instrument_errors(pps, context):
+    """
+    Reads the Kikusui error queue. Critical for knowing WHY a command failed.
+    """
     try:
-        # strip() removes whitespace, adding \n ensures distinct command
-        pps.write(command.strip() + "\n")
-    except Exception as e:
-        print(f"Error sending command '{command}': {e}")
- 
-def wait_for_program_completion(pps, device_name):
-    """
-    Polls the device status until the program finishes.
-    """
-    print(f"[{device_name}] Waiting for program to complete...")
-    while True:
-        try:
-            # Check Operation Condition register (standard SCPI)
-            # Returns non-zero if program is running/busy
-            response = pps.query(":STAT:OPER:COND?")
-            
-            # If bit 0 is 0, it usually means idle/done. 
-            # Adjust logic if your specific model returns different status bits.
-            if "0" in response.strip(): 
-                break
-            
-            time.sleep(1)
-        except Exception as e:
-            print(f"[{device_name}] Status check error: {e}")
-            time.sleep(1)
- 
+        # Kikusui standard error query
+        err = pps.query("SYST:ERR?")
+        if "No error" not in err and "+0," not in err:
+            print(f"[{context}] ⚠️ INSTRUMENT ERROR: {err.strip()}")
+    except:
+        pass
+
 def trigger_pps_device(device_config, barrier, start_time):
     visa_resource = device_config["visa_resource"]
     name = device_config["name"]
-    prog_num = device_config["program_number"]
+    prog_name = device_config["program_name"]
 
     try:
         rm = pyvisa.ResourceManager()
         with rm.open_resource(visa_resource) as pps:
-            # Set timeout slightly higher for safety
             pps.timeout = 5000 
+            # Clear interface
+            pps.write("*CLS")
             print(f"[{name}] Connected.")
- 
-            # --- STEP 1: SELECT THE PROGRAM ---
-            # We select the program BEFORE the barrier. 
-            # This ensures all devices are "armed" and ready to run.
-            select_cmd = f":PROG:SEL {prog_num}"
-            send_command(pps, select_cmd)
-            print(f"[{name}] Selected Program {prog_num}")
 
-            # Give the device a moment to load the program from memory
+            # --- DEBUG: LIST AVAILABLE PROGRAMS ---
+            # This helps you verify if "6" actually exists on the device.
+            try:
+                # For PLZ-5W / PWR-01 series
+                available_progs = pps.query("PROG:LIST?").strip()
+                print(f"[{name}] Available Programs on Device: {available_progs}")
+            except:
+                # Older models might not support LIST, just ignore
+                pass
+
+            # --- STEP 1: SELECT THE PROGRAM ---
+            # Kikusui usually expects: PROG:NAME "6" (with quotes)
+            # We try PROG:NAME first. 
+            select_cmd = f':PROG:NAME "{prog_name}"'
+            
+            print(f"[{name}] Sending: {select_cmd}")
+            pps.write(select_cmd)
             time.sleep(0.5)
+            
+            # Check if that command worked
+            check_instrument_errors(pps, name)
+
+            # --- VERIFY SELECTION ---
+            try:
+                current = pps.query("PROG:NAME?").strip()
+                # Cleanup quotes for comparison (e.g., '"6"' -> '6')
+                clean_current = current.replace('"', '')
+                print(f"[{name}] Target: {prog_name} | Active: {clean_current}")
+            except:
+                pass
 
             # --- STEP 2: SYNCHRONIZE ---
-            # Wait here until ALL processes have connected and selected their programs
             barrier.wait()
  
-            # --- STEP 3: PRECISE TIMING ---
-            # Busy wait loop for high-precision start
+            # --- STEP 3: PRECISE START ---
             while datetime.now() < start_time:
-                pass # spinning until exact start time
+                pass 
  
             # --- STEP 4: RUN ---
-            send_command(pps, ":PROG:EXEC:STATe RUN")
+            # Ensure output is OFF before starting sequence (required for some Kikusui)
+            pps.write("OUTP OFF") 
+            
+            pps.write(":PROG:EXEC:STAT RUN")
             print(f"[{name}] Triggered RUN at {datetime.now().strftime('%H:%M:%S.%f')}")
  
-            # --- STEP 5: MONITOR & CLEANUP ---
-            wait_for_program_completion(pps, name)
+            # --- STEP 5: MONITOR ---
+            print(f"[{name}] Running...")
+            while True:
+                # Check 'Running' bit in Operation Status
+                # Kikusui specific: Bit 3 is usually 'Transient/Program Running'
+                # Simple check: Is PROG status still RUN?
+                try:
+                    stat = pps.query(":PROG:EXEC:STAT?").strip()
+                    if "STOP" in stat:
+                        break
+                except:
+                    break
+                time.sleep(1)
  
-            send_command(pps, "OUTP OFF")
-            print(f"[{name}] Program finished. Output turned OFF.")
+            pps.write("OUTP OFF")
+            print(f"[{name}] Program finished.")
  
     except pyvisa.VisaIOError as e:
-        print(f"[{name}] CONNECTION ERROR ({visa_resource}): {e}")
+        print(f"[{name}] Connection Error: {e}")
  
 if __name__ == "__main__":
-    # Create a barrier for the number of devices we have
-    num_devices = len(PPS_DEVICES)
-    barrier = Barrier(num_devices)
-
-    # Schedule the start for 5 seconds in the future
+    barrier = Barrier(len(PPS_DEVICES))
     start_time = datetime.now() + timedelta(seconds=5)
-    print(f"Starting automation... All devices will trigger at {start_time.strftime('%H:%M:%S')}")
+    
+    print(f"Starting Kikusui Automation... Trigger at {start_time.strftime('%H:%M:%S')}")
 
     processes = []
     for device in PPS_DEVICES:
-        # We pass the whole device dictionary now
         process = Process(target=trigger_pps_device, args=(device, barrier, start_time))
         processes.append(process)
         process.start()
@@ -114,4 +129,4 @@ if __name__ == "__main__":
     for process in processes:
         process.join()
  
-    print("All PPS devices finished successfully.")
+    print("All sequences completed.")
