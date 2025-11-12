@@ -1,86 +1,85 @@
 import pyvisa
 import time
 
-# --- CONFIGURATION: DEFINING YOUR TEST RECIPE ---
-# You can change these steps to whatever you need.
-# format: {'voltage': V, 'current': A, 'duration': Seconds}
-TEST_SEQUENCE = [
-    {'voltage': 12.0, 'current': 5.0, 'duration': 2.0, 'output': 'ON'},  # Step 1: Crank
-    {'voltage': 10.5, 'current': 2.0, 'duration': 5.0, 'output': 'ON'},  # Step 2: Steady
-    {'voltage': 0.0,  'current': 0.0, 'duration': 1.0, 'output': 'OFF'}, # Step 3: Rest
-    {'voltage': 14.0, 'current': 5.0, 'duration': 3.0, 'output': 'ON'},  # Step 4: Charging
+# --- CONFIGURATION FOR +B SEQUENCE ---
+# Based on "Power Fluctuation pattern A1"
+PLUS_B_SEQUENCE = [
+    # 1. PRE-TEST (IG_OFF)
+    #    Start at 13V.
+    {'voltage': 13.0, 'current': 10.0, 'duration': 1.0, 'output': 'ON'},
+
+    # 2. VOLTAGE DIP (IG_ON)
+    #    Drops to 12V for exactly 1 second.
+    {'voltage': 12.0, 'current': 10.0, 'duration': 1.0, 'output': 'ON'},
+
+    # 3. RECOVERY (IG_OFF)
+    #    Returns to 13V. The image says this varies (10ms-2010ms). 
+    #    We set it to 2.0s for this run.
+    {'voltage': 13.0, 'current': 10.0, 'duration': 2.0, 'output': 'ON'},
+
+    # 4. SCS_ON PHASE
+    #    Stays at 13V for 20 seconds.
+    {'voltage': 13.0, 'current': 10.0, 'duration': 20.0, 'output': 'ON'},
+
+    # 5. POST-TEST
+    #    Final 2 second hold at 13V.
+    {'voltage': 13.0, 'current': 10.0, 'duration': 2.0, 'output': 'ON'},
+    
+    # 6. FINISH
+    #    Turn off output at the end (Safety)
+    {'voltage': 0.0,  'current': 0.0,  'duration': 0.1, 'output': 'OFF'}
 ]
 
-# Target Device (Pick one to test first)
-TARGET_RESOURCE = "USB0::0x0B3E::0x1012::EZ002640::INSTR"
-PROGRAM_NAME = "Python_Test"  # Name of the program to create on the device
+# --- SETTINGS ---
+# Update this with the VISA address of the power supply acting as "+B"
+TARGET_RESOURCE = "USB0::0x0B3E::0x1012::EZ002642::INSTR" 
+PROGRAM_NAME = "Pattern_A1_PlusB"
 
 def send(inst, cmd):
-    """Helper to send command and print it"""
     print(f"Sending: {cmd}")
     inst.write(cmd)
-    time.sleep(0.1) # Short delay to prevent buffer overflow
+    time.sleep(0.1)
 
 def create_sequence(resource, prog_name, steps):
     try:
         rm = pyvisa.ResourceManager()
         with rm.open_resource(resource) as pps:
             pps.timeout = 5000
-            print(f"Connected to {pps.query('*IDN?').strip()}")
+            print(f"Connected to +B Supply: {pps.query('*IDN?').strip()}")
 
-            # 1. DELETE OLD PROGRAM (If it exists)
-            # We try to delete it so we don't get "Name Duplicate" errors
+            # 1. DELETE EXISTING PROGRAM (To avoid 'Duplicate Name' error)
             try:
                 pps.write(f':PROG:DEL "{prog_name}"')
-                print(f"Deleted old program '{prog_name}'")
+                print(f"Old program '{prog_name}' deleted.")
             except:
-                pass # It probably didn't exist, which is fine
+                pass
 
             # 2. CREATE NEW PROGRAM
-            # Syntax: PROG:CRE "Name", "Description"
-            send(pps, f':PROG:CRE "{prog_name}", "Created by Python"')
-            
-            # 3. ENTER EDIT MODE
-            # This command usually selects the program for editing
-            # For some models, creating it automatically selects it.
-            send(pps, f':PROG:NAME "{prog_name}"')
+            send(pps, f':PROG:CRE "{prog_name}", "Pattern A1 +B"')
+            send(pps, f':PROG:NAME "{prog_name}"') # Select it for editing
 
-            # 4. DEFINE LOOP (Run once)
-            send(pps, f':PROG:LOOP 1')
-
-            # 5. UPLOAD STEPS
-            # Kikusui PLZ-5W/PWR-01 Step Syntax usually looks like:
-            # PROG:STEP <step_num>, LEV, <val>, TIME, <sec>, LOAD, <on/off>
-            
-            print("Uploading steps...")
+            # 3. UPLOAD STEPS
+            print("Uploading +B Sequence steps...")
             for i, step in enumerate(steps):
                 step_num = i + 1
-                volts = step['voltage']
-                amps = step['current'] # Used if in CC mode or as limit
-                duration = step['duration']
-                out_state = step['output']
-
-                # Construct the command string
-                # Note: You may need to adjust 'LEV' to 'VOLT' or 'CURR' depending on your mode (CV vs CC)
-                # This example assumes Constant Voltage (CV) mode logic for a Power Supply
                 
-                # COMMAND FORMAT: PROG:STEP <N>, LEV, <V>, TIME, <S>, OUTP, <ON/OFF>
+                # COMMAND FORMAT (Assuming CV Mode):
+                # PROG:STEP <N>, LEV, <Volts>, TIME, <Seconds>, OUTP, <ON/OFF>
+                
+                # Note: If your device requires Current Limit in the step, add 'CURR, {step["current"]}'
                 cmd = (f':PROG:STEP {step_num}, '
-                       f'LEV, {volts}, '
-                       f'TIME, {duration}, '
-                       f'OUTP, {out_state}')
+                       f'LEV, {step["voltage"]}, '
+                       f'TIME, {step["duration"]}, '
+                       f'OUTP, {step["output"]}')
                 
                 send(pps, cmd)
 
-            # 6. SAVE PROGRAM
+            # 4. SAVE
             send(pps, ':PROG:SAVE')
-            print(f"Successfully created program '{prog_name}' with {len(steps)} steps.")
+            print(f"Successfully created +B Program: '{prog_name}'")
 
-    except pyvisa.VisaIOError as e:
-        print(f"Communication Error: {e}")
     except Exception as e:
         print(f"Error: {e}")
 
 if __name__ == "__main__":
-    print("Starting Program Creation...")
-    create_sequence(TARGET_RESOURCE, PROGRAM_NAME, TEST_SEQUENCE)
+    create_sequence(TARGET_RESOURCE, PROGRAM_NAME, PLUS_B_SEQUENCE)
