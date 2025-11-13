@@ -1,74 +1,68 @@
 import pyvisa
 import time
 
-TARGET = "USB0::0x0B3E::0x1012::EZ002642::INSTR"
+TARGET = "USB0::0x0B3E::0x1012::EZ002642::INSTR"   # adjust if your resource differs
 
-def safe_change_step_title(target=TARGET, program=1, step=1, new_title="PY_STEP_1"):
+def set_program_loop(target=TARGET, program=1, loop_count=5):
     rm = pyvisa.ResourceManager()
-    print("VISA resources:", rm.list_resources())
+    print("VISA resources detected:", rm.list_resources())
 
     inst = rm.open_resource(target)
     inst.read_termination = '\n'
     inst.write_termination = '\n'
-    inst.timeout = 20000    # 20 s for safety while debugging
+    inst.timeout = 20000   # 20s timeout for safety while debugging
 
     try:
         print("IDN:", inst.query('*IDN?').strip())
     except Exception as e:
-        print("IDN query failed:", e)
+        print("Warning: *IDN? failed:", e)
 
-    # Clear errs
+    # Clear error queue
     try:
         inst.write('*CLS')
     except Exception:
         pass
 
-    # Make sure remote mode active (check visually for RMT icon)
-    print(">>> Make sure the front-panel is NOT in SEQ EDIT mode (press LOCAL then REMOTE if needed).")
+    print(">>> Make sure the front-panel is NOT in SEQ EDIT mode (press LOCAL once, then REMOTE if needed).")
     time.sleep(0.5)
 
-    # Select the program
+    # Select the program to edit
     print(f"Selecting program {program} ...")
-    inst.write(f':PROG:NAME "{program}"')
+    inst.write(f'PROG:NAME "{program}"')
     time.sleep(0.1)
 
-    # Select the step
-    print(f"Selecting step {step} ...")
-    inst.write(f':PROG:STEP:SEL {step}')
-    time.sleep(0.1)
+    # Write the loop count
+    print(f"Setting program loop to {loop_count} ...")
+    inst.write(f'PROG:EDIT:LOOP {loop_count}')
 
-    # Write the new step title
-    print("Writing new step title...")
-    inst.write(f':PROG:STEP:EDIT:TITL "{new_title}"')
-
-    # Wait for instrument to complete operation using OPC? instead of sleep
+    # Wait for completion
     try:
         opc = inst.query('*OPC?').strip()
         print("*OPC? ->", opc)
     except Exception as e:
-        print("Warning: *OPC? failed or timed out:", e)
+        print("Warning: *OPC? failed:", e)
 
-    # Try the expected query first, with increased timeout
-    print("Reading back step title using ':PROG:STEP:EDIT:TITL?' ...")
+    # Read back loop value to verify
     try:
-        rb = inst.query(':PROG:STEP:EDIT:TITL?').strip()
-        print("Readback (EDIT:TITL?):", repr(rb))
+        rb = inst.query('PROG:EDIT:LOOP?').strip()
+        print("PROG:EDIT:LOOP? ->", rb)
     except Exception as e:
-        print("EDIT:TITL? query failed:", e)
-        print("Trying alternate readback ':PROG:STEP:TITL?' ...")
+        print("Readback failed:", e)
+        # try alternate command form (some manuals vary slightly)
         try:
-            rb2 = inst.query(':PROG:STEP:TITL?').strip()
-            print("Readback (STEP:TITL?):", repr(rb2))
+            rb2 = inst.query('PROG:EDIT:LOOP?').strip()
+            print("Alternate readback ->", rb2)
         except Exception as e2:
-            print("Alternate query also failed:", e2)
+            print("Alternate readback also failed:", e2)
 
-    # Print instrument error queue
+    # Print system error queue
     try:
         print("SYST:ERR? ->", inst.query('SYST:ERR?').strip())
     except Exception as e:
-        print("SYST:ERR? query failed:", e)
+        print("SYST:ERR? failed:", e)
 
     inst.close()
 
 if __name__ == "__main__":
-    safe_change_step_title()
+    # Example: set program 1 loop to 3 (change values as needed)
+    set_program_loop(program=1, loop_count=3)
