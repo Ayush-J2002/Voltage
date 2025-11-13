@@ -1,68 +1,163 @@
+# acc_runner.py
 import pyvisa
 import time
+import math
 
-TARGET = "USB0::0x0B3E::0x1012::EZ002642::INSTR"   # adjust if your resource differs
+TARGET = "USB0::0x0B3E::0x1012::EZ002642::INSTR"  # adjust if needed
 
-def set_program_loop(target=TARGET, program=1, loop_count=5):
+def open_inst(resource=TARGET, timeout_ms=20000):
     rm = pyvisa.ResourceManager()
-    print("VISA resources detected:", rm.list_resources())
-
-    inst = rm.open_resource(target)
+    print("VISA resources:", rm.list_resources())
+    inst = rm.open_resource(resource)
     inst.read_termination = '\n'
     inst.write_termination = '\n'
-    inst.timeout = 20000   # 20s timeout for safety while debugging
+    inst.timeout = timeout_ms
+    return inst
 
+def set_voltage_current(inst, voltage=None, current=None):
+    """Set the output voltage and/or current limit (does not turn output on)."""
+    if voltage is not None:
+        inst.write(f':SOUR:VOLT {voltage:.6f}')
+    if current is not None:
+        inst.write(f':SOUR:CURR {current:.6f}')
+    # Wait for the instrument to accept settings
     try:
-        print("IDN:", inst.query('*IDN?').strip())
-    except Exception as e:
-        print("Warning: *IDN? failed:", e)
+        inst.query('*OPC?')
+    except Exception:
+        # if OPC not supported, small sleep so the device has time
+        time.sleep(0.05)
 
-    # Clear error queue
+def run_pattern(inst, steps, loops=1, ramp_step_ms=None, current_limit=None, leave_output_on=False):
+    """
+    Run a pattern on the instrument.
+
+    - inst: opened pyvisa instrument
+    - steps: list of (voltage, duration_seconds [, sweep_to_next?]) tuples
+        e.g. [(13.0, 1.0), (12.0, 20.0), (13.0, 2.0)]
+    - loops: number of times to repeat the whole sequence (int)
+    - ramp_step_ms: if set (e.g. 5), ramp between sequential step voltages in increments every ramp_step_ms milliseconds
+                   If None, immediate step changes are used (faster, but not smooth).
+    - current_limit: optional current limit (A) to set once at start
+    - leave_output_on: if True, leave output ON at the final step voltage; otherwise turn OFF at the end.
+    """
+    # safety: turn output off initially
     try:
-        inst.write('*CLS')
+        inst.write(':OUTP OFF')
     except Exception:
         pass
 
-    print(">>> Make sure the front-panel is NOT in SEQ EDIT mode (press LOCAL once, then REMOTE if needed).")
-    time.sleep(0.5)
-
-    # Select the program to edit
-    print(f"Selecting program {program} ...")
-    inst.write(f'PROG:NAME "{program}"')
-    time.sleep(0.1)
-
-    # Write the loop count
-    print(f"Setting program loop to {loop_count} ...")
-    inst.write(f'PROG:EDIT:LOOP {loop_count}')
-
-    # Wait for completion
-    try:
-        opc = inst.query('*OPC?').strip()
-        print("*OPC? ->", opc)
-    except Exception as e:
-        print("Warning: *OPC? failed:", e)
-
-    # Read back loop value to verify
-    try:
-        rb = inst.query('PROG:EDIT:LOOP?').strip()
-        print("PROG:EDIT:LOOP? ->", rb)
-    except Exception as e:
-        print("Readback failed:", e)
-        # try alternate command form (some manuals vary slightly)
+    if current_limit is not None:
+        inst.write(f':SOUR:CURR {current_limit:.6f}')
         try:
-            rb2 = inst.query('PROG:EDIT:LOOP?').strip()
-            print("Alternate readback ->", rb2)
-        except Exception as e2:
-            print("Alternate readback also failed:", e2)
+            inst.query('*OPC?')
+        except Exception:
+            time.sleep(0.05)
 
-    # Print system error queue
+    # start at first step voltage
+    if len(steps) == 0:
+        raise ValueError("No steps provided")
+
+    print("Starting pattern; loops:", loops)
+    for loop_i in range(loops):
+        print(f"Loop {loop_i+1}/{loops}")
+        for i, step in enumerate(steps):
+            # support both (voltage, duration) and extended (voltage, duration, extra)
+            voltage = float(step[0])
+            duration = float(step[1])
+
+            # if ramping requested and there is a next step, ramp to next value over zero time? We only ramp
+            # when moving from previous voltage to current voltage (so do ramp at step boundary)
+            if i == 0:
+                # first step: set immediately to step voltage (or ramp from previous if desired)
+                if ramp_step_ms:
+                    # do a tiny ramp from current setting to target
+                    try:
+                        # read current voltage? Not all instruments support reading source voltage; assume 0
+                        prev_v = 0.0
+                    except Exception:
+                        prev_v = 0.0
+                    _ramp_voltage(inst, prev_v, voltage, ramp_step_ms)
+                else:
+                    set_voltage_current(inst, voltage=voltage)
+            else:
+                # ramp from previous step voltage to current step voltage if requested
+                prev_v = float(steps[i-1][0])
+                if ramp_step_ms:
+                    _ramp_voltage(inst, prev_v, voltage, ramp_step_ms)
+                else:
+                    set_voltage_current(inst, voltage=voltage)
+
+            # turn output on if not already
+            inst.write(':OUTP ON')
+            # Wait the step duration
+            # Use small sleeps in a loop to be interruptible and approximate accurate sleep
+            end_t = time.time() + duration
+            while time.time() < end_t:
+                time.sleep(min(0.1, end_t - time.time()))
+
+        # loop finished; optionally turn output off between loops for safety
+        inst.write(':OUTP OFF')
+        time.sleep(0.1)
+
+    # after loops done, set final behaviour
+    if leave_output_on:
+        # set final step voltage to the last step value and turn on
+        set_voltage_current(inst, voltage=float(steps[-1][0]))
+        inst.write(':OUTP ON')
+    else:
+        inst.write(':OUTP OFF')
+
+    print("Pattern complete.")
+
+def _ramp_voltage(inst, v_from, v_to, step_ms):
+    """Simple linear ramp from v_from to v_to with step interval step_ms (ms)."""
+    if step_ms <= 0:
+        set_voltage_current(inst, voltage=v_to)
+        return
+
+    step_s = step_ms / 1000.0
+    # choose step amplitude so we do at most ~200 steps (avoid too many USB writes)
+    max_steps = 200
+    delta = v_to - v_from
+    if abs(delta) < 1e-6:
+        set_voltage_current(inst, voltage=v_to)
+        return
+    steps = min(max_steps, max(1, int(math.ceil(abs(delta) / max(0.01, abs(delta)/max_steps)))))
+    # recompute step_ms to fit desired steps: keep user requested ms if possible
+    # but we will use the requested step_ms as interval
+    step_val = delta / steps
+    v = v_from
+    for n in range(steps):
+        v += step_val
+        inst.write(f':SOUR:VOLT {v:.6f}')
+        # small pause
+        time.sleep(step_s)
+    # final exact
+    inst.write(f':SOUR:VOLT {v_to:.6f}')
     try:
-        print("SYST:ERR? ->", inst.query('SYST:ERR?').strip())
-    except Exception as e:
-        print("SYST:ERR? failed:", e)
+        inst.query('*OPC?')
+    except Exception:
+        time.sleep(0.01)
 
-    inst.close()
-
+# Example - implement a pattern similar to your A1 sketch:
 if __name__ == "__main__":
-    # Example: set program 1 loop to 3 (change values as needed)
-    set_program_loop(program=1, loop_count=3)
+    inst = open_inst()
+    try:
+        # Example pattern: 13V for 1s, 12V for 20s, 13V for 2s 
+        # (adjust values/durations to match your exact wish)
+        pattern = [
+            (13.0, 1.0),
+            (12.0, 20.0),
+            (13.0, 2.0),
+        ]
+
+        # If you want a fine sweep (for IG2 sweeping per 5ms), set ramp_step_ms=5 — note PC timing limits apply.
+        run_pattern(inst, steps=pattern, loops=3, ramp_step_ms=5, current_limit=2.0, leave_output_on=False)
+
+    finally:
+        # always close instrument
+        try:
+            inst.write(':OUTP OFF')
+        except Exception:
+            pass
+        inst.close()
