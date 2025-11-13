@@ -1,82 +1,84 @@
 import pyvisa
 import time
 
-# --- PATTERN CONFIGURATION (+B) ---
-# PBZ20-20 Step Format: Voltage(V), CurrentLimit(A), Time(s)
-# Based on Pattern A1: 13V -> 12V -> 13V
+# --- PATTERN A1 CONFIGURATION ---
+# Step Format: Step Number, Voltage(V), Current Limit(A), Time(s)
 STEPS = [
-    # Step 1: Initial State (13V)
-    {'step': 1, 'volt': 13.0, 'curr': 20.0, 'time': 1.0},
-
-    # Step 2: Dip (12V for 1s)
-    {'step': 2, 'volt': 12.0, 'curr': 20.0, 'time': 1.0},
-
-    # Step 3: Recovery (13V for 2s)
-    {'step': 3, 'volt': 13.0, 'curr': 20.0, 'time': 2.0},
-
-    # Step 4: SCS ON (13V for 20s)
-    {'step': 4, 'volt': 13.0, 'curr': 20.0, 'time': 20.0},
-
-    # Step 5: End Buffer (13V for 2s)
-    {'step': 5, 'volt': 13.0, 'curr': 20.0, 'time': 2.0}
+    {'step': 1, 'volt': 13.0, 'curr': 20.0, 'time': 1.0}, # Initial
+    {'step': 2, 'volt': 12.0, 'curr': 20.0, 'time': 1.0}, # Dip
+    {'step': 3, 'volt': 13.0, 'curr': 20.0, 'time': 22.0} # Recovery + Hold
 ]
 
-# UPDATE WITH YOUR PBZ ADDRESS
+# UPDATE ADDRESS IF NEEDED
 TARGET_RESOURCE = "USB0::0x0B3E::0x1012::EZ002642::INSTR"
 
-def create_pbz_sequence():
+def fix_and_create_program():
     try:
         rm = pyvisa.ResourceManager()
         with rm.open_resource(TARGET_RESOURCE) as pbz:
             pbz.timeout = 5000
+            # Identify Device
             print(f"Connected to: {pbz.query('*IDN?').strip()}")
 
-            # 1. STOP ANY RUNNING SEQUENCE
-            pbz.write(':PROG:EXEC:STAT STOP')
+            # 1. RESET & STOP
+            # Clear errors and stop any running sequence
+            pbz.write('*CLS')
             pbz.write('ABORT')
+            pbz.write(':PROG:EXEC:STAT STOP')
             time.sleep(0.5)
 
-            # 2. SELECT PROGRAM 1 (PRG01)
-            # The PBZ has 16 fixed slots. We select #1.
+            # 2. SELECT PRG01
             print("Selecting PRG01...")
-            pbz.write(':PROG:NAME "PRG01"') 
+            pbz.write(':PROG:NAME "PRG01"')
             time.sleep(0.2)
 
-            # 3. CONFIGURE HEADER
+            # 3. SETUP HEADER (Title & Mode)
             print("Configuring Header...")
-            pbz.write(':PROG:TITL "Pattern A1"') # Set Title
-            pbz.write(':PROG:LOOP 1')           # Loop 1 time
-            pbz.write(':FUNC:MODE CV')          # Constant Voltage Mode
+            pbz.write(':PROG:TITL "Pattern A1"')
+            pbz.write(':FUNC:MODE CV')          # CV Mode
+            pbz.write(':PROG:LOOP 1')           # Run once
             
-            # 4. SET STEPS using PROG:EDIT
-            # Syntax: :PROG:EDIT <Step>, <Volts>, <Amps>, <Time>, <TrigOut>, <Status>
-            # TrigOut=0 (Off), Status=1 (Output ON during step)
-            
+            # --- CRITICAL FIX: SET STEP COUNT ---
+            # You MUST tell the machine how many steps to allocate 
+            # BEFORE you try to edit them.
+            count = len(STEPS)
+            print(f"Resizing program to {count} steps...")
+            pbz.write(f':PROG:STEP:COUN {count}')
+            time.sleep(0.5) # Wait for memory allocation
+
+            # 4. UPLOAD STEPS
             print("Uploading Steps...")
             for s in STEPS:
+                # Syntax: :PROG:EDIT <Step>, <Volts>, <Amps>, <Time>, <Trig>, <Output>
                 cmd = f":PROG:EDIT {s['step']}, {s['volt']}, {s['curr']}, {s['time']}, 0, 1"
-                print(f"  Sending: {cmd}")
                 pbz.write(cmd)
                 
-                # Check for errors immediately after each step
-                err = pbz.query('SYST:ERR?')
+                # Debug: Check if the machine accepted the step
+                err = pbz.query('SYST:ERR?').strip()
                 if "No error" not in err:
-                    print(f"  !!! ERROR on Step {s['step']}: {err.strip()}")
+                    print(f"  [FAILED] Step {s['step']}: {err}")
+                else:
+                    print(f"  [OK] Step {s['step']} Uploaded")
 
-            # 5. SAVE PROGRAM
-            print("Saving Program...")
-            pbz.write(':PROG:SAVE') 
-            time.sleep(1.0) # Give it time to save to memory
+            # 5. SAVE TO MEMORY
+            print("Saving to EEPROM...")
+            pbz.write(':PROG:SAVE')
+            time.sleep(1.0)
 
-            # 6. RUN IT (Optional - Comment out if you just want to create it)
-            print("--- STARTING TEST ---")
-            pbz.write('OUTP 1')              # Turn Output ON
+            # 6. VERIFY
+            # Ask the machine what it thinks Step 2 is
+            verify_step = pbz.query(':PROG:EDIT? 2')
+            print(f"Verification (Step 2 Data): {verify_step.strip()}")
+
+            # 7. RUN
+            print("--- STARTING OUTPUT ---")
+            pbz.write('OUTP 1')              # Force Output ON
             time.sleep(0.5)
-            pbz.write(':PROG:EXEC:STAT RUN') # Start Sequence
-            print("Sequence Running... (Output should be ON)")
+            pbz.write(':PROG:EXEC:STAT RUN') # Run Sequence
+            print("Sequence Started.")
 
     except Exception as e:
         print(f"CRITICAL ERROR: {e}")
 
 if __name__ == "__main__":
-    create_pbz_sequence()
+    fix_and_create_program()
