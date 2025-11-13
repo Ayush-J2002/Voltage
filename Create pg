@@ -1,84 +1,85 @@
 import pyvisa
 import time
 
-# --- PATTERN A1 CONFIGURATION ---
-# Step Format: Step Number, Voltage(V), Current Limit(A), Time(s)
+# --- SAFE SETTINGS ---
+# We use 10A instead of 20A to avoid hitting the edge of the limit.
+SAFE_CURR = 10.0 
 STEPS = [
-    {'step': 1, 'volt': 13.0, 'curr': 20.0, 'time': 1.0}, # Initial
-    {'step': 2, 'volt': 12.0, 'curr': 20.0, 'time': 1.0}, # Dip
-    {'step': 3, 'volt': 13.0, 'curr': 20.0, 'time': 22.0} # Recovery + Hold
+    {'step': 1, 'volt': 13.0, 'curr': SAFE_CURR, 'time': 1.0},
+    {'step': 2, 'volt': 12.0, 'curr': SAFE_CURR, 'time': 1.0},
+    {'step': 3, 'volt': 13.0, 'curr': SAFE_CURR, 'time': 22.0}
 ]
 
-# UPDATE ADDRESS IF NEEDED
 TARGET_RESOURCE = "USB0::0x0B3E::0x1012::EZ002642::INSTR"
 
-def fix_and_create_program():
+def debug_pbz_program():
     try:
         rm = pyvisa.ResourceManager()
         with rm.open_resource(TARGET_RESOURCE) as pbz:
-            pbz.timeout = 5000
-            # Identify Device
+            # INCREASE TIMEOUT: Saving to memory can take >5 seconds
+            pbz.timeout = 10000 
             print(f"Connected to: {pbz.query('*IDN?').strip()}")
 
-            # 1. RESET & STOP
-            # Clear errors and stop any running sequence
-            pbz.write('*CLS')
+            # 1. CHECK SAFETY LIMITS
+            # This tells us why 20A might have failed
+            ovp = pbz.query('VOLT:PROT?').strip()
+            ocp = pbz.query('CURR:PROT?').strip()
+            print(f"DEVICE LIMITS -> OVP (Max Volt): {ovp}V, OCP (Max Curr): {ocp}A")
+
+            # 2. RESET & PREPARE
+            pbz.write('*CLS') # Clear old errors
             pbz.write('ABORT')
             pbz.write(':PROG:EXEC:STAT STOP')
             time.sleep(0.5)
 
-            # 2. SELECT PRG01
+            # 3. SELECT PRG01
             print("Selecting PRG01...")
             pbz.write(':PROG:NAME "PRG01"')
-            time.sleep(0.2)
-
-            # 3. SETUP HEADER (Title & Mode)
-            print("Configuring Header...")
-            pbz.write(':PROG:TITL "Pattern A1"')
-            pbz.write(':FUNC:MODE CV')          # CV Mode
-            pbz.write(':PROG:LOOP 1')           # Run once
+            pbz.write(':PROG:TITL "Pattern A1 Safe"')
+            pbz.write(':FUNC:MODE CV')
+            pbz.write(':PROG:LOOP 1')
             
-            # --- CRITICAL FIX: SET STEP COUNT ---
-            # You MUST tell the machine how many steps to allocate 
-            # BEFORE you try to edit them.
+            # 4. RESIZE PROGRAM
             count = len(STEPS)
-            print(f"Resizing program to {count} steps...")
+            print(f"Resizing to {count} steps...")
             pbz.write(f':PROG:STEP:COUN {count}')
-            time.sleep(0.5) # Wait for memory allocation
+            
+            # Verify Resize worked
+            time.sleep(1.0) # Wait for resize
+            actual_steps = pbz.query(':PROG:STEP:COUN?').strip()
+            print(f"Machine confirms step count is: {actual_steps}")
+            
+            if int(actual_steps) != count:
+                print("!!! ERROR: Resize failed. Aborting to prevent command errors.")
+                return
 
-            # 4. UPLOAD STEPS
-            print("Uploading Steps...")
+            # 5. UPLOAD STEPS
+            print("Uploading Steps (Safe 10A Mode)...")
             for s in STEPS:
-                # Syntax: :PROG:EDIT <Step>, <Volts>, <Amps>, <Time>, <Trig>, <Output>
+                # Syntax: STEP, VOLT, CURR, TIME, TRIG, OUTPUT
                 cmd = f":PROG:EDIT {s['step']}, {s['volt']}, {s['curr']}, {s['time']}, 0, 1"
                 pbz.write(cmd)
                 
-                # Debug: Check if the machine accepted the step
+                # Check error immediately
                 err = pbz.query('SYST:ERR?').strip()
                 if "No error" not in err:
                     print(f"  [FAILED] Step {s['step']}: {err}")
+                    # If Step 1 fails, stop trying
+                    if s['step'] == 1:
+                        print("  Stopping upload due to Step 1 failure.")
+                        break
                 else:
                     print(f"  [OK] Step {s['step']} Uploaded")
 
-            # 5. SAVE TO MEMORY
-            print("Saving to EEPROM...")
+            # 6. SAVE
+            print("Saving to EEPROM (Do not turn off)...")
             pbz.write(':PROG:SAVE')
-            time.sleep(1.0)
+            time.sleep(2.0) 
 
-            # 6. VERIFY
-            # Ask the machine what it thinks Step 2 is
-            verify_step = pbz.query(':PROG:EDIT? 2')
-            print(f"Verification (Step 2 Data): {verify_step.strip()}")
-
-            # 7. RUN
-            print("--- STARTING OUTPUT ---")
-            pbz.write('OUTP 1')              # Force Output ON
-            time.sleep(0.5)
-            pbz.write(':PROG:EXEC:STAT RUN') # Run Sequence
-            print("Sequence Started.")
+            print("SUCCESS. Try running the program from the front panel.")
 
     except Exception as e:
         print(f"CRITICAL ERROR: {e}")
 
 if __name__ == "__main__":
-    fix_and_create_program()
+    debug_pbz_program()
