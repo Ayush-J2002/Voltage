@@ -1,57 +1,60 @@
 import pyvisa
 import time
 
-# UPDATE ADDRESS
 TARGET_RESOURCE = "USB0::0x0B3E::0x1012::EZ002642::INSTR"
 
-def fix_title_and_setup():
-    print("--- KIKUSUI PBZ TITLE FIX ---")
+def try_program_steps():
+    print("--- KIKUSUI PBZ STEP WRITE TEST ---")
     try:
         rm = pyvisa.ResourceManager()
         pbz = rm.open_resource(TARGET_RESOURCE)
         
-        # 1. Connection Setup (Mandatory for Kikusui)
+        # 1. Standard Setup
         pbz.read_termination = '\n'
         pbz.write_termination = '\n'
         pbz.timeout = 5000
         
-        # 2. Clear any previous errors/timeouts
+        # 2. Reset
         pbz.write('*CLS')
         pbz.write('ABORT')
+        
+        # 3. Select Program 1 (We know this works now)
+        print("1. Selecting Program '1'...")
+        pbz.write(':PROG:NAME "1"')
         time.sleep(0.5)
 
-        # 3. Select Program 1 (Using the CORRECT name "1")
-        print("1. Selecting Program 1...")
-        # The fix: We send "1", not "PRG01"
-        pbz.write(':PROG:NAME "1"') 
+        # 4. Resize to 3 Steps (This is the CRITICAL test)
+        print("2. Resizing Program to 3 Steps...")
+        pbz.write(':PROG:STEP:COUN 3')
         
-        # Wait for it to process
-        time.sleep(0.5)
+        # Check for error immediately
+        err = pbz.query('SYST:ERR?')
+        if "No error" not in err:
+            print(f"   !!! RESIZE ERROR: {err.strip()} !!!")
+            return
 
-        # 4. Check if selection worked
-        current = pbz.query(':PROG:NAME?')
-        print(f"   Current Program is now: {current.strip()}")
+        # 5. Write Step 1 Data (13V, 5A, 1s)
+        # Note: We use 5A to stay safe below your 6A limit
+        print("3. Writing Step 1 Data...")
+        # Syntax: :PROG:EDIT <Step>, <Volts>, <Amps>, <Time>, <Trig>, <ON/OFF>
+        pbz.write(':PROG:EDIT 1, 13.0, 5.0, 1.0, 0, 1')
 
-        # 5. Change the Title
-        print("2. Changing Title to 'PYTHON_TEST'...")
-        pbz.write(':PROG:TITL "PYTHON_TEST"')
-        
-        # Wait for save
-        time.sleep(1.0)
+        # Check for error
+        err = pbz.query('SYST:ERR?')
+        if "No error" in err:
+            print("   ✅ SUCCESS! Step 1 Written successfully.")
+            print("   --> Check the Kikusui screen. Does Step 1 show 13.0V?")
+        else:
+            print(f"   ❌ STEP WRITE FAILED: {err.strip()}")
 
-        # 6. Verify
-        new_title = pbz.query(':PROG:TITL?')
-        print(f"   SUCCESS! New Title Readback: {new_title.strip()}")
-        
-        # 7. (Optional) Setup for ACC Pattern if Title works
-        # We set the loop count to 1 so we can add steps later
-        pbz.write(':PROG:LOOP 1')
+        # 6. Save
+        pbz.write(':PROG:SAVE')
+        print("4. Program Saved.")
         
         pbz.close()
 
     except Exception as e:
-        print(f"Error: {e}")
-        print("TIP: If Timeout, unplug USB and restart Device.")
+        print(f"CRITICAL ERROR: {e}")
 
 if __name__ == "__main__":
-    fix_title_and_setup()
+    try_program_steps()
