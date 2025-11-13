@@ -1,64 +1,66 @@
 import pyvisa
 import time
 
-# UPDATE WITH YOUR ADDRESS
 TARGET_RESOURCE = "USB0::0x0B3E::0x1012::EZ002642::INSTR"
 
-def change_title_only():
+def try_connection(term_name, read_term, write_term):
+    print(f"\n--- TESTING CONFIGURATION: {term_name} ---")
     try:
         rm = pyvisa.ResourceManager()
         pbz = rm.open_resource(TARGET_RESOURCE)
-
-        # 1. CRITICAL: Set Communication Terminators
-        # Kikusui PBZ usually requires a newline character to know a command is done.
-        pbz.read_termination = '\n'
-        pbz.write_termination = '\n'
-        pbz.timeout = 5000 
-
-        print(f"Connected to: {pbz.query('*IDN?').strip()}")
-
-        # 2. RESET & CLEAR
-        # This clears any "stuck" errors or half-finished edits from before.
-        print("Resetting Device State...")
-        pbz.write('*CLS') 
-        pbz.write('ABORT')
-        time.sleep(1.0)
-
-        # 3. FORCE REMOTE MODE
-        # Ensures the front panel doesn't block us.
+        
+        # Apply Settings
+        pbz.timeout = 2000  # Short timeout for testing
+        if read_term: pbz.read_termination = read_term
+        if write_term: pbz.write_termination = write_term
+        
+        # Test 1: Simple Query
+        print("1. Sending *IDN? ...")
+        idn = pbz.query('*IDN?')
+        print(f"   Response: {idn.strip()}")
+        
+        # Test 2: Force Remote (Write Check)
+        print("2. Sending SYST:REM (Force Remote)...")
         pbz.write('SYST:REM')
+        time.sleep(0.2)
         
-        # 4. SELECT PROGRAM 1
-        # We must select the slot before renaming it.
-        print("Selecting PRG01...")
-        pbz.write(':PROG:NAME "PRG01"') 
-        time.sleep(0.5)
-
-        # 5. CHANGE TITLE
-        new_title = "TEST_TITLE"
-        print(f"Setting title to '{new_title}'...")
+        # Test 3: Error Check (Verify Write Worked)
+        print("3. Checking System Errors...")
+        err = pbz.query('SYST:ERR?')
+        print(f"   Error Status: {err.strip()}")
         
-        # Send the change command
-        pbz.write(f':PROG:TITL "{new_title}"')
-        time.sleep(1.0) # Wait for it to save
-
-        # 6. VERIFY
-        # Ask the machine "What is your title now?"
-        actual_title = pbz.query(':PROG:TITL?').strip()
+        # Test 4: Select Program (The Step failing before)
+        print("4. Selecting PRG01...")
+        pbz.write(':PROG:NAME "PRG01"')
         
-        print("-" * 30)
-        print(f"Expected: {new_title}")
-        print(f"Actual:   {actual_title}")
-        print("-" * 30)
-
-        if new_title in actual_title:
-            print("SUCCESS! Title changed.")
-        else:
-            print("FAILED. Title did not update.")
+        # Test 5: Change Title
+        print("5. Changing Title to 'TEST_OK'...")
+        pbz.write(':PROG:TITL "TEST_OK"')
+        
+        # Final Verify
+        print("6. Verifying Title...")
+        title = pbz.query(':PROG:TITL?')
+        print(f"   SUCCESS! Title read back as: {title.strip()}")
+        
+        pbz.close()
+        return True
 
     except Exception as e:
-        print(f"ERROR: {e}")
-        print("Tip: If Timeout, unplug USB and restart the Kikusui.")
+        print(f"   FAILED with error: {e}")
+        try: pbz.close()
+        except: pass
+        return False
 
 if __name__ == "__main__":
-    change_title_only()
+    # OPTION A: Standard Newline (Common for newer firmwares)
+    if not try_connection("Standard LF (\\n)", '\n', '\n'):
+        
+        # OPTION B: Carriage Return + Newline (Common for older Kikusui)
+        print("   -> Switching to Option B...")
+        if not try_connection("CR+LF (\\r\\n)", '\n', '\r\n'):
+            
+            # OPTION C: No Terminator (Rely on USB EOM signal)
+            print("   -> Switching to Option C...")
+            try_connection("None (USB EOM)", None, None)
+
+    print("\n--- DIAGNOSTIC COMPLETE ---")
