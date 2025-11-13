@@ -1,51 +1,57 @@
 import pyvisa
 import time
 
-# UPDATE WITH YOUR ADDRESS
+# UPDATE ADDRESS
 TARGET_RESOURCE = "USB0::0x0B3E::0x1012::EZ002642::INSTR"
 
-def scan_pbz_status():
-    print("--- KIKUSUI PBZ STATUS SCANNER ---")
+def fix_title_and_setup():
+    print("--- KIKUSUI PBZ TITLE FIX ---")
     try:
         rm = pyvisa.ResourceManager()
-        # Try to open with a hard reset of the interface
         pbz = rm.open_resource(TARGET_RESOURCE)
-        pbz.timeout = 3000
-        pbz.read_termination = '\n' 
+        
+        # 1. Connection Setup (Mandatory for Kikusui)
+        pbz.read_termination = '\n'
         pbz.write_termination = '\n'
-
-        # 1. Check Identity
-        print("1. Pinging Device...")
-        try:
-            print(f"   Response: {pbz.query('*IDN?').strip()}")
-        except:
-            print("   !!! CRITICAL FAIL: Device not responding. Unplug USB and Restart Device !!!")
-            return
-
-        # 2. Force Remote Mode (To unlock front panel)
-        print("2. Locking Front Panel (Remote Mode)...")
-        pbz.write('SYST:REM')
+        pbz.timeout = 5000
+        
+        # 2. Clear any previous errors/timeouts
+        pbz.write('*CLS')
+        pbz.write('ABORT')
         time.sleep(0.5)
 
-        # 3. Ask: "What Program are you on right now?"
-        print("3. Reading Current Program Name...")
-        # This command asks the device what is currently selected
-        current_prog = pbz.query(':PROG:NAME?')
-        print(f"   DEVICE SAYS CURRENT PROGRAM IS: {current_prog.strip()}")
+        # 3. Select Program 1 (Using the CORRECT name "1")
+        print("1. Selecting Program 1...")
+        # The fix: We send "1", not "PRG01"
+        pbz.write(':PROG:NAME "1"') 
+        
+        # Wait for it to process
+        time.sleep(0.5)
 
-        # 4. Ask: "Do you have a title for this?"
-        current_title = pbz.query(':PROG:TITL?')
-        print(f"   DEVICE SAYS CURRENT TITLE IS:   {current_title.strip()}")
+        # 4. Check if selection worked
+        current = pbz.query(':PROG:NAME?')
+        print(f"   Current Program is now: {current.strip()}")
 
-        print("\n--- DIAGNOSIS ---")
-        clean_name = current_prog.strip().replace('"', '')
-        if clean_name == "PRG01":
-            print("✅ Name confirms standard 'PRG01' syntax.")
-        else:
-            print(f"⚠️ Name is unexpected: '{clean_name}'. We should use THIS name in our code.")
+        # 5. Change the Title
+        print("2. Changing Title to 'PYTHON_TEST'...")
+        pbz.write(':PROG:TITL "PYTHON_TEST"')
+        
+        # Wait for save
+        time.sleep(1.0)
+
+        # 6. Verify
+        new_title = pbz.query(':PROG:TITL?')
+        print(f"   SUCCESS! New Title Readback: {new_title.strip()}")
+        
+        # 7. (Optional) Setup for ACC Pattern if Title works
+        # We set the loop count to 1 so we can add steps later
+        pbz.write(':PROG:LOOP 1')
+        
+        pbz.close()
 
     except Exception as e:
         print(f"Error: {e}")
+        print("TIP: If Timeout, unplug USB and restart Device.")
 
 if __name__ == "__main__":
-    scan_pbz_status()
+    fix_title_and_setup()
