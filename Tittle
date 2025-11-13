@@ -1,27 +1,74 @@
 import pyvisa
 import time
 
-TARGET_RESOURCE = "USB0::0x0B3E::0x1012::EZ002642::INSTR"
+TARGET = "USB0::0x0B3E::0x1012::EZ002642::INSTR"
 
-rm = pyvisa.ResourceManager()
-inst = rm.open_resource(TARGET_RESOURCE)
-inst.read_termination = '\n'
-inst.write_termination = '\n'
-inst.timeout = 8000
+def safe_change_step_title(target=TARGET, program=1, step=1, new_title="PY_STEP_1"):
+    rm = pyvisa.ResourceManager()
+    print("VISA resources:", rm.list_resources())
 
-print("Selecting Program 1...")
-inst.write('PROG:NAME "1"')
-time.sleep(0.2)
+    inst = rm.open_resource(target)
+    inst.read_termination = '\n'
+    inst.write_termination = '\n'
+    inst.timeout = 20000    # 20 s for safety while debugging
 
-print("Selecting Step 1...")
-inst.write('PROG:STEP:SEL 1')
-time.sleep(0.2)
+    try:
+        print("IDN:", inst.query('*IDN?').strip())
+    except Exception as e:
+        print("IDN query failed:", e)
 
-print("Setting new Step Title...")
-inst.write('PROG:STEP:EDIT:TITL "PYTHON_STEP_1"')
-time.sleep(0.3)
+    # Clear errs
+    try:
+        inst.write('*CLS')
+    except Exception:
+        pass
 
-rb = inst.query('PROG:STEP:EDIT:TITL?').strip()
-print("Step Title Readback:", rb)
+    # Make sure remote mode active (check visually for RMT icon)
+    print(">>> Make sure the front-panel is NOT in SEQ EDIT mode (press LOCAL then REMOTE if needed).")
+    time.sleep(0.5)
 
-inst.close()
+    # Select the program
+    print(f"Selecting program {program} ...")
+    inst.write(f':PROG:NAME "{program}"')
+    time.sleep(0.1)
+
+    # Select the step
+    print(f"Selecting step {step} ...")
+    inst.write(f':PROG:STEP:SEL {step}')
+    time.sleep(0.1)
+
+    # Write the new step title
+    print("Writing new step title...")
+    inst.write(f':PROG:STEP:EDIT:TITL "{new_title}"')
+
+    # Wait for instrument to complete operation using OPC? instead of sleep
+    try:
+        opc = inst.query('*OPC?').strip()
+        print("*OPC? ->", opc)
+    except Exception as e:
+        print("Warning: *OPC? failed or timed out:", e)
+
+    # Try the expected query first, with increased timeout
+    print("Reading back step title using ':PROG:STEP:EDIT:TITL?' ...")
+    try:
+        rb = inst.query(':PROG:STEP:EDIT:TITL?').strip()
+        print("Readback (EDIT:TITL?):", repr(rb))
+    except Exception as e:
+        print("EDIT:TITL? query failed:", e)
+        print("Trying alternate readback ':PROG:STEP:TITL?' ...")
+        try:
+            rb2 = inst.query(':PROG:STEP:TITL?').strip()
+            print("Readback (STEP:TITL?):", repr(rb2))
+        except Exception as e2:
+            print("Alternate query also failed:", e2)
+
+    # Print instrument error queue
+    try:
+        print("SYST:ERR? ->", inst.query('SYST:ERR?').strip())
+    except Exception as e:
+        print("SYST:ERR? query failed:", e)
+
+    inst.close()
+
+if __name__ == "__main__":
+    safe_change_step_title()
