@@ -1,80 +1,27 @@
 import pyvisa
 import time
 
-TARGET_RESOURCE = "USB0::0x0B3E::0x1012::EZ002642::INSTR"  # adjust if needed
+TARGET_RESOURCE = "USB0::0x0B3E::0x1012::EZ002642::INSTR"
 
-def debug_pbz(target=TARGET_RESOURCE):
-    rm = pyvisa.ResourceManager()
-    print("Resources detected by VISA:", rm.list_resources())
+rm = pyvisa.ResourceManager()
+inst = rm.open_resource(TARGET_RESOURCE)
+inst.read_termination = '\n'
+inst.write_termination = '\n'
+inst.timeout = 8000
 
-    try:
-        inst = rm.open_resource(target)
-    except Exception as e:
-        print("ERROR opening target resource:", e)
-        return
+print("Selecting Program 1...")
+inst.write('PROG:NAME "1"')
+time.sleep(0.2)
 
-    # make sure termination/timeouts are friendly for debugging
-    inst.read_termination = '\n'
-    inst.write_termination = '\n'
-    inst.timeout = 8000
+print("Selecting Step 1...")
+inst.write('PROG:STEP:SEL 1')
+time.sleep(0.2)
 
-    try:
-        print("IDN:", inst.query('*IDN?').strip())
-    except Exception as e:
-        print("IDN query failed (instrument might not be remote-ready):", e)
+print("Setting new Step Title...")
+inst.write('PROG:STEP:EDIT:TITL "PYTHON_STEP_1"')
+time.sleep(0.3)
 
-    # clear and abort any previous state
-    try:
-        inst.write('*CLS')
-        inst.write('ABORT')
-    except Exception as e:
-        print("Warning clearing device:", e)
+rb = inst.query('PROG:STEP:EDIT:TITL?').strip()
+print("Step Title Readback:", rb)
 
-    # show remote indicator recommendation
-    print(">>> On the PBZ front panel, check that the RMT icon is visible (remote mode).")
-
-    # select program 1 and verify selection
-    print("Selecting program 1 by PROG:NAME \"1\" ...")
-    inst.write('PROG:NAME "1"')
-    time.sleep(0.2)
-
-    # read back which program is currently selected
-    try:
-        sel = inst.query('PROG:NAME?').strip()
-        print("PROG:NAME? ->", sel)
-    except Exception as e:
-        print("PROG:NAME? query error:", e)
-
-    # write the EDIT title and read it back
-    try:
-        print('Writing EDIT title: PROG:EDIT:TITL "PYTHON_TEST" ...')
-        inst.write('PROG:EDIT:TITL "PYTHON_TEST"')
-        time.sleep(0.4)
-        readback = inst.query('PROG:EDIT:TITL?').strip()
-        print('PROG:EDIT:TITL? ->', repr(readback))
-    except Exception as e:
-        print("Error writing/reading EDIT:TITL:", e)
-
-    # check instrument error queue
-    try:
-        err = inst.query('SYST:ERR?').strip()
-        print("SYST:ERR? ->", err)
-    except Exception as e:
-        print("SYST:ERR? query failed:", e)
-
-    # Optional: enumerate and print stored program titles 1..16 (select each and query)
-    print("\nListing PROG titles (1..16):")
-    for n in range(1, 17):
-        try:
-            inst.write(f'PROG:NAME \"{n}\"')
-            time.sleep(0.08)
-            # Use EDIT:TITL? (documented to return selected program name)
-            title = inst.query('PROG:EDIT:TITL?').strip()
-            print(f"  Program {n}: {repr(title)}")
-        except Exception as e:
-            print(f"  Program {n}: query error: {e}")
-
-    inst.close()
-
-if __name__ == '__main__':
-    debug_pbz()
+inst.close()
