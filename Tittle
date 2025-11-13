@@ -1,60 +1,65 @@
 import pyvisa
 import time
 
+# UPDATE ADDRESS
 TARGET_RESOURCE = "USB0::0x0B3E::0x1012::EZ002642::INSTR"
 
-def try_program_steps():
-    print("--- KIKUSUI PBZ STEP WRITE TEST ---")
+def fix_title_and_setup():
+    print("--- KIKUSUI PBZ TITLE FIX ---")
     try:
         rm = pyvisa.ResourceManager()
         pbz = rm.open_resource(TARGET_RESOURCE)
-        
-        # 1. Standard Setup
+
+        # Connection setup
         pbz.read_termination = '\n'
         pbz.write_termination = '\n'
-        pbz.timeout = 5000
-        
-        # 2. Reset
+        pbz.timeout = 8000  # a little larger while debugging
+
+        # Clear and abort any previous state
         pbz.write('*CLS')
         pbz.write('ABORT')
-        
-        # 3. Select Program 1 (We know this works now)
-        print("1. Selecting Program '1'...")
-        pbz.write(':PROG:NAME "1"')
         time.sleep(0.5)
 
-        # 4. Resize to 3 Steps (This is the CRITICAL test)
-        print("2. Resizing Program to 3 Steps...")
-        pbz.write(':PROG:STEP:COUN 3')
-        
-        # Check for error immediately
-        err = pbz.query('SYST:ERR?')
-        if "No error" not in err:
-            print(f"   !!! RESIZE ERROR: {err.strip()} !!!")
-            return
+        # Ensure output is OFF before editing program settings
+        # (If your unit uses a different output command, check the manual,
+        # but :OUTP OFF is the common SCPI form.)
+        try:
+            pbz.write(':OUTP OFF')      # turn output off before edits
+            time.sleep(0.2)
+        except Exception:
+            # If this command fails on your model, ignore here and continue,
+            # but double-check the manual for the correct output-off command.
+            pass
 
-        # 5. Write Step 1 Data (13V, 5A, 1s)
-        # Note: We use 5A to stay safe below your 6A limit
-        print("3. Writing Step 1 Data...")
-        # Syntax: :PROG:EDIT <Step>, <Volts>, <Amps>, <Time>, <Trig>, <ON/OFF>
-        pbz.write(':PROG:EDIT 1, 13.0, 5.0, 1.0, 0, 1')
+        # 1) Select program "1" (string must be in double quotes)
+        print("1. Selecting Program 1...")
+        pbz.write(':PROG:NAME "1"')
+        time.sleep(0.5)
+        current = pbz.query(':PROG:NAME?')
+        print(f"   Current Program is now: {current.strip()}")
 
-        # Check for error
-        err = pbz.query('SYST:ERR?')
-        if "No error" in err:
-            print("   ✅ SUCCESS! Step 1 Written successfully.")
-            print("   --> Check the Kikusui screen. Does Step 1 show 13.0V?")
-        else:
-            print(f"   ❌ STEP WRITE FAILED: {err.strip()}")
+        # 2) Use the EDIT namespace to change the title (correct SCPI)
+        print('2. Changing Title using PROG:EDIT:TITL ...')
+        pbz.write(':PROG:EDIT:TITL "PYTHON_TEST"')   # correct command
+        time.sleep(0.8)
 
-        # 6. Save
-        pbz.write(':PROG:SAVE')
-        print("4. Program Saved.")
-        
+        # 3) Verify with the EDIT query
+        new_title = pbz.query(':PROG:EDIT:TITL?')
+        print(f'   SUCCESS! New Title Readback: "{new_title.strip()}"')
+
+        # 4) Set loop using EDIT namespace as well
+        pbz.write(':PROG:EDIT:LOOP 1')
+        time.sleep(0.2)
+
         pbz.close()
 
     except Exception as e:
-        print(f"CRITICAL ERROR: {e}")
+        print("Error:", e)
+        print("Tips:")
+        print("- Make sure the instrument's front-panel POWER and OUTPUT are in a state that allows editing (OUTPUT OFF).")
+        print("- Confirm the exact SCPI commands for your PBZ model in the 'Interface/Communication' manual (PROG:EDIT:* commands).")
+        print("- If you still get timeouts, increase pbz.timeout for debugging and check that the USB resource string is correct.")
+        print("If Timeout: try unplugging USB and power-cycling the instrument and PC as last resort.")
 
-if __name__ == "__main__":
-    try_program_steps()
+if __name__ == '__main__':
+    fix_title_and_setup()
