@@ -1,66 +1,51 @@
 import pyvisa
 import time
 
+# UPDATE WITH YOUR ADDRESS
 TARGET_RESOURCE = "USB0::0x0B3E::0x1012::EZ002642::INSTR"
 
-def try_connection(term_name, read_term, write_term):
-    print(f"\n--- TESTING CONFIGURATION: {term_name} ---")
+def scan_pbz_status():
+    print("--- KIKUSUI PBZ STATUS SCANNER ---")
     try:
         rm = pyvisa.ResourceManager()
+        # Try to open with a hard reset of the interface
         pbz = rm.open_resource(TARGET_RESOURCE)
-        
-        # Apply Settings
-        pbz.timeout = 2000  # Short timeout for testing
-        if read_term: pbz.read_termination = read_term
-        if write_term: pbz.write_termination = write_term
-        
-        # Test 1: Simple Query
-        print("1. Sending *IDN? ...")
-        idn = pbz.query('*IDN?')
-        print(f"   Response: {idn.strip()}")
-        
-        # Test 2: Force Remote (Write Check)
-        print("2. Sending SYST:REM (Force Remote)...")
+        pbz.timeout = 3000
+        pbz.read_termination = '\n' 
+        pbz.write_termination = '\n'
+
+        # 1. Check Identity
+        print("1. Pinging Device...")
+        try:
+            print(f"   Response: {pbz.query('*IDN?').strip()}")
+        except:
+            print("   !!! CRITICAL FAIL: Device not responding. Unplug USB and Restart Device !!!")
+            return
+
+        # 2. Force Remote Mode (To unlock front panel)
+        print("2. Locking Front Panel (Remote Mode)...")
         pbz.write('SYST:REM')
-        time.sleep(0.2)
-        
-        # Test 3: Error Check (Verify Write Worked)
-        print("3. Checking System Errors...")
-        err = pbz.query('SYST:ERR?')
-        print(f"   Error Status: {err.strip()}")
-        
-        # Test 4: Select Program (The Step failing before)
-        print("4. Selecting PRG01...")
-        pbz.write(':PROG:NAME "PRG01"')
-        
-        # Test 5: Change Title
-        print("5. Changing Title to 'TEST_OK'...")
-        pbz.write(':PROG:TITL "TEST_OK"')
-        
-        # Final Verify
-        print("6. Verifying Title...")
-        title = pbz.query(':PROG:TITL?')
-        print(f"   SUCCESS! Title read back as: {title.strip()}")
-        
-        pbz.close()
-        return True
+        time.sleep(0.5)
+
+        # 3. Ask: "What Program are you on right now?"
+        print("3. Reading Current Program Name...")
+        # This command asks the device what is currently selected
+        current_prog = pbz.query(':PROG:NAME?')
+        print(f"   DEVICE SAYS CURRENT PROGRAM IS: {current_prog.strip()}")
+
+        # 4. Ask: "Do you have a title for this?"
+        current_title = pbz.query(':PROG:TITL?')
+        print(f"   DEVICE SAYS CURRENT TITLE IS:   {current_title.strip()}")
+
+        print("\n--- DIAGNOSIS ---")
+        clean_name = current_prog.strip().replace('"', '')
+        if clean_name == "PRG01":
+            print("✅ Name confirms standard 'PRG01' syntax.")
+        else:
+            print(f"⚠️ Name is unexpected: '{clean_name}'. We should use THIS name in our code.")
 
     except Exception as e:
-        print(f"   FAILED with error: {e}")
-        try: pbz.close()
-        except: pass
-        return False
+        print(f"Error: {e}")
 
 if __name__ == "__main__":
-    # OPTION A: Standard Newline (Common for newer firmwares)
-    if not try_connection("Standard LF (\\n)", '\n', '\n'):
-        
-        # OPTION B: Carriage Return + Newline (Common for older Kikusui)
-        print("   -> Switching to Option B...")
-        if not try_connection("CR+LF (\\r\\n)", '\n', '\r\n'):
-            
-            # OPTION C: No Terminator (Rely on USB EOM signal)
-            print("   -> Switching to Option C...")
-            try_connection("None (USB EOM)", None, None)
-
-    print("\n--- DIAGNOSTIC COMPLETE ---")
+    scan_pbz_status()
