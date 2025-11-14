@@ -1,57 +1,29 @@
 IDN: KIKUSUI,PBZ20-20,EZ002642,2.25
-After selecting program '1' -> 0,"No error"
+Header set. SYST:ERR? -> 0,"No error"
+Device reports existing step count = 5
 
---- Trying candidate insertion/create commands ---
-WRITE 'PROG:EDIT:STEP:INS 1' -> SYST:ERR? = -100,"Command error"
-WRITE 'PROG:EDIT:STEP:INS' -> SYST:ERR? = -100,"Command error"
-WRITE 'PROG:EDIT:STEP:INS 1,' -> SYST:ERR? = -100,"Command error"
-WRITE 'PROG:EDIT:STEP:INS 1,0' -> SYST:ERR? = -100,"Command error"
-WRITE 'PROG:STEP:INS 1' -> SYST:ERR? = -100,"Command error"
-WRITE 'PROG:STEP:INS' -> SYST:ERR? = -100,"Command error"
-WRITE 'PROG:STEP:INS 1,' -> SYST:ERR? = -100,"Command error"
-WRITE 'PROG:STEP:INS 1,0' -> SYST:ERR? = -100,"Command error"
-WRITE 'PROG:STEP:NEW 1' -> SYST:ERR? = -100,"Command error"
-WRITE 'PROG:STEP:NEW' -> SYST:ERR? = -100,"Command error"
-WRITE 'PROG:STEP:NEW 1,' -> SYST:ERR? = -100,"Command error"
-WRITE 'PROG:STEP:NEW 1,0' -> SYST:ERR? = -100,"Command error"
-WRITE 'PROG:EDIT:STEP:NEW 1' -> SYST:ERR? = -100,"Command error"
-WRITE 'PROG:EDIT:STEP:NEW' -> SYST:ERR? = -100,"Command error"
-WRITE 'PROG:EDIT:STEP:NEW 1,' -> SYST:ERR? = -100,"Command error"
-WRITE 'PROG:EDIT:STEP:NEW 1,0' -> SYST:ERR? = -100,"Command error"
-WRITE 'PROG:STEP:APP 1' -> SYST:ERR? = -100,"Command error"
-WRITE 'PROG:STEP:APP' -> SYST:ERR? = -100,"Command error"
-WRITE 'PROG:STEP:APP 1,' -> SYST:ERR? = -100,"Command error"
-WRITE 'PROG:STEP:APP 1,0' -> SYST:ERR? = -100,"Command error"
-WRITE 'PROG:STEP:ADD 1' -> SYST:ERR? = -100,"Command error"
-WRITE 'PROG:STEP:ADD' -> SYST:ERR? = -100,"Command error"
-WRITE 'PROG:STEP:ADD 1,' -> SYST:ERR? = -100,"Command error"
-WRITE 'PROG:STEP:ADD 1,0' -> SYST:ERR? = -100,"Command error"
-WRITE 'STEP:INS 1' -> SYST:ERR? = -100,"Command error"
-WRITE 'STEP:NEW 1' -> SYST:ERR? = -100,"Command error"
-WRITE 'STEP:APP 1' -> SYST:ERR? = -100,"Command error"
-WRITE 'STEP:ADD 1' -> SYST:ERR? = -100,"Command error"
-WRITE 'PROG:EDIT:STEP:CRE 1' -> SYST:ERR? = -100,"Command error"
-WRITE 'PROG:EDIT:STEP:CRE' -> SYST:ERR? = -100,"Command error"
-WRITE 'PROG:EDIT:STEP:CRE 1,' -> SYST:ERR? = -100,"Command error"
-WRITE 'PROG:EDIT:STEP:CRE 1,0' -> SYST:ERR? = -100,"Command error"
-WRITE 'PROG:EDIT:STEP:LIST 1' -> SYST:ERR? = -100,"Command error"
-WRITE 'PROG:STEP:LIST 1' -> SYST:ERR? = -100,"Command error"
-WRITE 'PROG:EDIT:STEP:SET 1' -> SYST:ERR? = -100,"Command error"
-
---- Attempt SELECT 1 now ---
-SEL 1 -> 0,"No error"
-EDIT:STEP:SEL 1 -> -100,"Command error"
-
---- Try writing fields (VOLT/CURR/TIME) now ---
-WRITE 'PROG:EDIT:STEP:VOLT 3.0' -> 0,"No error"
-WRITE 'PROG:EDIT:STEP:CURR 1.0' -> -221,"Settings conflict"
-WRITE 'PROG:EDIT:STEP:TIME 0.5' -> 0,"No error"
-
---- Query some counts ---
-QUERY ':PROG:EDIT:COUN?' -> 1
-QUERY ':PROG:EDIT:COUNT?' -> 1
-QUERY ':PROG:STEP:COUN?' -> EXC query :PROG:STEP:COUN?: VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
-QUERY ':PROG:STEP:COUNT?' -> EXC query :PROG:STEP:COUNT?: VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
-QUERY ':PROG:EDIT:STEP:COUN?' -> EXC query :PROG:EDIT:STEP:COUN?: VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
-
-Probe finished.
+--- Writing step 1 ---
+WROTE 'PROG:EDIT:STEP:VOLT 1,0.0' -> SYST:ERR? = -220,"Parameter error"
+WROTE 'PROG:EDIT:STEP:CURR 1,5.0' -> SYST:ERR? = -220,"Parameter error"
+WROTE 'PROG:EDIT:STEP:TIME 1,1.0' -> SYST:ERR? = -108,"Parameter not allowed"
+QUERY 'PROG:EDIT:STEP:VOLT? 1' -> EXC querying 'PROG:EDIT:STEP:VOLT? 1': VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
+QUERY 'PROG:STEP:VOLT? 1' -> EXC querying 'PROG:STEP:VOLT? 1': VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
+QUERY 'PROG:EDIT:STEP:DC? 1' -> EXC querying 'PROG:EDIT:STEP:DC? 1': VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
+QUERY 'PROG:STEP:DC? 1' -> EXC querying 'PROG:STEP:DC? 1': VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
+SEL 1 -> SYST:ERR? = -220,"Parameter error"
+WROTE 'PROG:EDIT:STEP:VOLT 0.0' -> SYST:ERR? = -420,"Query UNTERMINATED"
+WROTE 'PROG:EDIT:STEP:CURR 5.0' -> SYST:ERR? = -100,"Command error"
+WROTE 'PROG:EDIT:STEP:TIME 1.0' -> SYST:ERR? = -420,"Query UNTERMINATED"
+QUERY 'PROG:EDIT:STEP:VOLT? 1' -> EXC querying 'PROG:EDIT:STEP:VOLT? 1': VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
+QUERY 'PROG:STEP:VOLT? 1' -> EXC querying 'PROG:STEP:VOLT? 1': VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
+QUERY 'PROG:EDIT:STEP:DC? 1' -> EXC querying 'PROG:EDIT:STEP:DC? 1': VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
+QUERY 'PROG:STEP:DC? 1' -> EXC querying 'PROG:STEP:DC? 1': VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
+Both direct and select methods failed for step 1
+Latest SYST:ERR? -> -100,"Command error"
+Connection closed.
+Traceback (most recent call last):
+  File "d:\OneDrive - KPIT Technologies Ltd\Desktop\Python\PG.py", line 180, in <module>
+    main()
+  File "d:\OneDrive - KPIT Technologies Ltd\Desktop\Python\PG.py", line 161, in main
+    raise RuntimeError(f"Failed to program step {n}. See instrument replies above.")
+RuntimeError: Failed to program step 1. See instrument replies above.
