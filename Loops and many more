@@ -55,12 +55,22 @@ def upload_and_run_sequence(inst, slot, title, loops, current, steps_list):
         
         # --- 4. RESIZE PROGRAM ---
         step_count = len(steps_list)
-        print(f"4. Deleting old steps and setting new count to {step_count}...")
-        # We delete old steps first to ensure a clean program
-        inst.write(':PROG:EDIT:DELete') 
-        # Set the new total step count
-        inst.write(f':PROG:STEP:COUN {step_count}') 
+        print(f"4. Deleting old steps and adding {step_count} new steps...")
         
+        # Delete all old steps (Page 56)
+        inst.write(':PROG:EDIT:DELete') 
+        
+        # --- THIS IS THE FIX ---
+        # The correct command from Page 55 is :PROG:EDIT:ADD
+        inst.write(f':PROG:EDIT:ADD {step_count}') 
+        
+        # Check for error *immediately* after the resize
+        err = inst.query('SYST:ERR?')
+        if "No error" not in err:
+            print(f"   !!! ERROR during resize: {err.strip()} !!!")
+            print("   Stopping script.")
+            return
+
         # --- 5. UPLOAD STEPS (THE CORRECT WAY) ---
         print("5. Uploading steps (one by one)...")
         for s in steps_list:
