@@ -1,156 +1,123 @@
+# replacement_steps_upload.py
 import pyvisa
 import time
 
-# -------------------- EDIT THESE --------------------
-TARGET_RESOURCE = "USB0::0x0B3E::0x1012::EZ002642::INSTR"  # <-- your VISA address
-PROGRAM_SLOT    = "1"                                     # "1", "2", ...
+TARGET_RESOURCE = "USB0::0x0B3E::0x1012::EZ002642::INSTR"
+PROGRAM_SLOT    = "1"
 PROGRAM_TITLE   = "ACC_D1_TEST"
 LOOP_COUNT      = 1
-CURRENT_LIMIT_A = 5.0                                     # safe under 6 A OCP
+CURRENT_LIMIT_A = 5.0
 
-# Example pattern (step#, voltage[V], dwell[s])
-NEW_STEPS = [
+PATTERN_TO_UPLOAD = [
     {"step": 1, "volt": 0.0,  "time": 1.0},
     {"step": 2, "volt": 12.0, "time": 0.1},
     {"step": 3, "volt": 0.0,  "time": 1.0},
     {"step": 4, "volt": 13.0, "time": 20.0},
     {"step": 5, "volt": 0.0,  "time": 2.0},
 ]
-# ----------------------------------------------------
 
+def query_err(inst, ctx=""):
+    """Query instrument error register and raise on error text."""
+    try:
+        e = inst.query("SYST:ERR?").strip()
+    except Exception:
+        raise RuntimeError(f"{ctx}: failed to query SYST:ERR?")
+    # many instruments return "0,No error" or similar; treat any non "No error" as problem
+    if e and ("no error" not in e.lower() and not e.startswith("0,")):
+        raise RuntimeError(f"SCPI error after {ctx}: {e}")
+    return e
 
-def check_err(inst, ctx=""):
-    """Query and raise if any instrument error is present."""
-    err = inst.query("SYST:ERR?").strip()
-    if not err.lower().startswith("0") and "no error" not in err.lower():
-        raise RuntimeError(f"SCPI error after {ctx}: {err}")
-    return err
-
-
-def pick_program(inst, slot):
-    """Select a program slot. On PBZ this is done by naming the program."""
+def select_program(inst, slot):
     inst.write("*CLS")
     inst.write("ABORT")
     inst.write("SYST:REM")
-    time.sleep(0.2)
-    inst.write(f':PROG:NAME "{slot}"')   # select/create PRG.<slot>
     time.sleep(0.1)
-    check_err(inst, "selecting program")
+    inst.write(f':PROG:NAME "{slot}"')   # select/create program slot
+    query_err(inst, "select_program")
 
-
-def set_header(inst, title, loops):
-    """Set title and loop count for the selected program."""
+def set_program_header(inst, title, loops):
     inst.write(f':PROG:EDIT:TITL "{title}"')
     inst.write(f":PROG:EDIT:LOOP {int(loops)}")
-    check_err(inst, "setting title/loop")
+    query_err(inst, "set_program_header")
 
+def clear_program_steps(inst):
+    """Delete all steps in the selected program (optional, safe start)."""
+    inst.write(":PROG:EDIT:DEL")   # deletes all steps for selected program
+    query_err(inst, "clear_program_steps")
 
-def resize_steps(inst, count):
-    """Resize the program to 'count' steps."""
-    inst.write(f":PROG:STEP:COUN {int(count)}")
-    check_err(inst, f"resizing to {count} steps")
+def write_step_fields(inst, step_idx, volt, curr_limit, dwell_s):
+    """
+    Create / select the step index, then set its VOLT, CURR and TIME fields.
+    The manual shows selecting a step with PROG:EDIT:STEP:SEL and setting fields with
+    PROG:EDIT:STEP:VOLT / :CURR / :TIME.
+    """
+    inst.write(f"PROG:EDIT:STEP:SEL {int(step_idx)}")
+    query_err(inst, f"select step {step_idx}")
 
+    # Set DC voltage for selected step
+    inst.write(f"PROG:EDIT:STEP:VOLT {float(volt)}")
+    query_err(inst, f"VOLT step {step_idx}")
 
-def write_step_dc(inst, n, volt, curr_lim, dwell_s):
-    """Write a single DC step n with voltage, current limit, and dwell time."""
-    cmd = f":PROG:STEP:DC {int(n)}, {float(volt)}, {float(curr_lim)}, {float(dwell_s)}"
-    inst.write(cmd)
-    check_err(inst, f"writing step {n}")
+    # Set current (I limit) for selected step
+    inst.write(f"PROG:EDIT:STEP:CURR {float(curr_limit)}")
+    query_err(inst, f"CURR step {step_idx}")
 
+    # Set the dwell / execution time for the selected step
+    inst.write(f"PROG:EDIT:STEP:TIME {float(dwell_s)}")
+    query_err(inst, f"TIME step {step_idx}")
+
+    # optionally: ensure output state for that step (ON=1 or OFF=0) and triggers (example: ON,OFF,OFF)
+    # inst.write(f"PROG:EDIT:STEP:STAT 1,0,0")
+    # query_err(inst, f"STAT step {step_idx}")
 
 def save_program(inst):
     inst.write(":PROG:SAVE")
-    time.sleep(0.5)
-    check_err(inst, "saving program")
-
+    time.sleep(0.3)
+    query_err(inst, "save_program")
 
 def run_program(inst):
     inst.write("OUTP 1")
-    time.sleep(0.2)
+    time.sleep(0.1)
     inst.write(":PROG:EXEC:STAT RUN")
-    check_err(inst, "starting execution")
+    query_err(inst, "run_program")
 
-
-def replace_steps(inst, steps, current_limit_a):
-    """
-    Replace the entire step table with 'steps' (list of dicts with keys
-    step/volt/time). Steps are written by their 'step' index.
-    """
-    if not steps:
-        raise ValueError("Steps list is empty.")
-
-    # Ensure step indices are 1..N and consistent
-    steps_sorted = sorted(steps, key=lambda s: s["step"])
-    for i, s in enumerate(steps_sorted, start=1):
-        if s["step"] != i:
-            raise ValueError("Step numbers must be contiguous starting at 1.")
-
-    resize_steps(inst, len(steps_sorted))
-    for s in steps_sorted:
-        write_step_dc(inst, s["step"], s["volt"], current_limit_a, s["time"])
-    save_program(inst)
-
-
-def update_one_step(inst, step_no, volt=None, dwell_s=None, current_limit_a=None):
-    """
-    Edit a single step n in-place. Any argument left as None will be read back
-    (if supported) or left unchanged by rewriting with the old value.
-    On PBZ, the safest cross-version method is to *rewrite* the whole line.
-    So you should pass all values you want; otherwise this tries a best effort.
-    """
-    # Best practice: pass every field you want to guarantee.
-    if volt is None or dwell_s is None or current_limit_a is None:
-        # If your firmware supports it, you can try queries like:
-        #   ":PROG:STEP:DC? n"
-        # Not all versions reply; if it fails, you'll need to supply values.
-        try:
-            reply = inst.query(f":PROG:STEP:DC? {int(step_no)}").strip()
-            # Expected format (typical): "VOLT,CURR,TIME"
-            parts = [p.strip() for p in reply.split(",")]
-            v_old = float(parts[0]) if volt is None else volt
-            i_old = float(parts[1]) if current_limit_a is None else current_limit_a
-            t_old = float(parts[2]) if dwell_s is None else dwell_s
-            write_step_dc(inst, step_no, v_old, i_old, t_old)
-            save_program(inst)
-            return
-        except Exception:
-            raise ValueError(
-                "Firmware did not return step parameters. "
-                "Please provide volt, dwell_s, and current_limit_a."
-            )
-
-    # If everything is provided, just rewrite:
-    write_step_dc(inst, step_no, volt, current_limit_a, dwell_s)
-    save_program(inst)
-
-
-def main():
+def upload_and_run_sequence(resource_str, slot, title, loops, current_limit, steps_list, run=True):
     rm = pyvisa.ResourceManager()
-    inst = rm.open_resource(TARGET_RESOURCE)
+    inst = rm.open_resource(resource_str)
     inst.read_termination = "\n"
     inst.write_termination = "\n"
     inst.timeout = 5000
 
-    print(inst.query("*IDN?").strip())
+    try:
+        print("IDN:", inst.query("*IDN?").strip())
+        select_program(inst, slot)
+        set_program_header(inst, title, loops)
 
-    # --- Select program & set header
-    pick_program(inst, PROGRAM_SLOT)
-    set_header(inst, PROGRAM_TITLE, LOOP_COUNT)
+        # wipe existing steps to avoid leftovers (optional)
+        clear_program_steps(inst)
 
-    # --- Replace the entire step table (ADD/EDIT STEPS HERE)
-    replace_steps(inst, NEW_STEPS, CURRENT_LIMIT_A)
-    print("Step table written & saved.")
+        # write each step: select then set fields
+        for s in sorted(steps_list, key=lambda x: x["step"]):
+            print(f"Writing step {s['step']}: V={s['volt']}V, T={s['time']}s")
+            write_step_fields(inst, s["step"], s["volt"], current_limit, s["time"])
 
-    # --- Example: tweak only step 2 later (12.5 V for 0.2 s)
-    # update_one_step(inst, step_no=2, volt=12.5, dwell_s=0.2, current_limit_a=CURRENT_LIMIT_A)
+        save_program(inst)
+        print("Program saved.")
 
-    # --- Run it (comment out if you only want to edit)
-    run_program(inst)
-    print("Sequence running.")
-
-    inst.close()
-    print("Connection closed.")
-
+        if run:
+            run_program(inst)
+            print("Program started.")
+    finally:
+        inst.close()
+        print("Connection closed.")
 
 if __name__ == "__main__":
-    main()
+    upload_and_run_sequence(
+        TARGET_RESOURCE,
+        PROGRAM_SLOT,
+        PROGRAM_TITLE,
+        LOOP_COUNT,
+        CURRENT_LIMIT_A,
+        PATTERN_TO_UPLOAD,
+        run=True
+    )
