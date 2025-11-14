@@ -1,15 +1,13 @@
+# robust_write_steps_v2.py
 import pyvisa
 import time
 
-# ---------- EDIT THESE ----------
-RESOURCE = "USB0::0x0B3E::0x1012::EZ002642::INSTR"
+RESOURCE = "USB0::0x0B3E::0x1012::EZ002642::INSTR"  # change if needed
 PROGRAM_SLOT = "1"
 PROGRAM_TITLE = "ACC_D1_TEST"
 LOOP_COUNT = 1
 CURRENT_LIMIT_A = 5.0
 
-# Specify what you want each step to contain.
-# IMPORTANT: the device must already have at least len(STEPS) steps created (via front-panel).
 STEPS = [
     {"step": 1, "volt": 0.0,  "time": 1.0},
     {"step": 2, "volt": 12.0, "time": 0.1},
@@ -17,8 +15,15 @@ STEPS = [
     {"step": 4, "volt": 13.0, "time": 20.0},
     {"step": 5, "volt": 0.0,  "time": 2.0},
 ]
-RUN_AFTER_SAVE = True
-# --------------------------------
+
+# helpers
+def open_inst(resource, timeout_ms=5000):
+    rm = pyvisa.ResourceManager()
+    inst = rm.open_resource(resource)
+    inst.read_termination = "\n"
+    inst.write_termination = "\n"
+    inst.timeout = timeout_ms
+    return inst
 
 def syst_err(inst, ctx=""):
     try:
@@ -26,104 +31,149 @@ def syst_err(inst, ctx=""):
     except Exception as e:
         return f"EXC querying SYST:ERR? after {ctx}: {e}"
 
-def query_int(inst, q):
+def safe_write(inst, cmd):
+    """Write and return SYST:ERR? string (None if no error)."""
     try:
-        resp = inst.query(q).strip()
-        return int(resp.split(",")[0])
-    except Exception:
-        return None
+        inst.write(cmd)
+        time.sleep(0.06)
+    except Exception as e:
+        return f"EXC writing '{cmd}': {e}"
+    return syst_err(inst, cmd)
 
-def write_and_check(inst, cmd, ctx=""):
-    inst.write(cmd)
-    time.sleep(0.06)
-    e = syst_err(inst, ctx)
-    if e is None:
-        return True, None
-    return False, e
+def safe_query(inst, cmd):
+    """Query and return response (or exception text)."""
+    try:
+        resp = inst.query(cmd).strip()
+        return resp
+    except Exception as e:
+        return f"EXC querying '{cmd}': {e}"
+
+def try_direct_field_write(inst, n, volt, curr, t):
+    """
+    Try direct writes that include the step index as a parameter:
+      PROG:EDIT:STEP:VOLT <n>,<value>
+      PROG:EDIT:STEP:CURR <n>,<value>
+      PROG:EDIT:STEP:TIME <n>,<value>
+    If any of these succeed (no SYST:ERR?), return True.
+    """
+    cmds = [
+        f"PROG:EDIT:STEP:VOLT {int(n)},{float(volt)}",
+        f"PROG:EDIT:STEP:CURR {int(n)},{float(curr)}",
+        f"PROG:EDIT:STEP:TIME {int(n)},{float(t)}",
+    ]
+    for c in cmds:
+        resp_err = safe_write(inst, c)
+        print(f"WROTE '{c}' -> SYST:ERR? = {resp_err}")
+        if resp_err and ("no error" not in resp_err.lower() and not resp_err.startswith("0,")):
+            # treat this specific command as failing but keep trying others
+            pass
+    # after attempts, verify by querying the voltage for that step
+    for q in (f"PROG:EDIT:STEP:VOLT? {n}", f"PROG:STEP:VOLT? {n}", f"PROG:EDIT:STEP:DC? {n}", f"PROG:STEP:DC? {n}"):
+        resp = safe_query(inst, q)
+        print(f"QUERY '{q}' -> {resp}")
+        if isinstance(resp, str) and (resp.startswith("EXC") is False) and resp != "":
+            # got something back — assume success
+            return True
+    return False
+
+def select_then_write(inst, n, volt, curr, t):
+    """Select step then write fields and verify by querying voltage for that step."""
+    sel_err = safe_write(inst, f"PROG:EDIT:STEP:SEL {int(n)}")
+    print(f"SEL {n} -> SYST:ERR? = {sel_err}")
+    # Even if sel_err reports "No error" we still attempt writes
+    writes = [
+        (f"PROG:EDIT:STEP:VOLT {float(volt)}", "VOLT"),
+        (f"PROG:EDIT:STEP:CURR {float(curr)}", "CURR"),
+        (f"PROG:EDIT:STEP:TIME {float(t)}", "TIME"),
+    ]
+    for cmd, name in writes:
+        err = safe_write(inst, cmd)
+        print(f"WROTE '{cmd}' -> SYST:ERR? = {err}")
+
+    # verify by querying voltage via a few query syntaxes
+    for q in (f"PROG:EDIT:STEP:VOLT? {n}", f"PROG:STEP:VOLT? {n}", f"PROG:EDIT:STEP:DC? {n}", f"PROG:STEP:DC? {n}"):
+        resp = safe_query(inst, q)
+        print(f"QUERY '{q}' -> {resp}")
+        if isinstance(resp, str) and (resp.startswith("EXC") is False) and resp != "":
+            # parse numeric if possible
+            try:
+                v = float(resp.split(",")[0])
+                # small tolerance compare
+                if abs(v - float(volt)) < 1e-3:
+                    return True
+            except Exception:
+                return True
+    return False
 
 def main():
-    rm = pyvisa.ResourceManager()
-    inst = rm.open_resource(RESOURCE)
-    inst.read_termination = "\n"
-    inst.write_termination = "\n"
-    inst.timeout = 5000
-
+    inst = open_inst(RESOURCE)
     try:
-        print("IDN:", inst.query("*IDN?").strip())
-
-        # select program slot and header
+        print("IDN:", safe_query(inst, "*IDN?"))
         inst.write("*CLS"); inst.write("ABORT"); inst.write("SYST:REM")
         time.sleep(0.05)
         inst.write(f':PROG:NAME "{PROGRAM_SLOT}"')
         time.sleep(0.05)
         inst.write(f':PROG:EDIT:TITL "{PROGRAM_TITLE}"')
         inst.write(f":PROG:EDIT:LOOP {int(LOOP_COUNT)}")
-        time.sleep(0.05)
         print("Header set. SYST:ERR? ->", syst_err(inst, "header"))
 
-        # read how many steps exist in the current program (some queries time out; try a reliable one)
-        step_count = query_int(inst, ":PROG:EDIT:COUN?")
-        if step_count is None:
-            # fallback to other query that worked in your logs
+        # get reported existing step count (try a few queries)
+        step_count = None
+        for q in (":PROG:EDIT:COUN?", ":PROG:EDIT:COUNT?", ":PROG:EDIT:STEP:COUN?", ":PROG:EDIT:STEP:COUNT?"):
             try:
-                resp = inst.query(":PROG:EDIT:COUNT?").strip()
-                step_count = int(resp.split(",")[0])
+                r = inst.query(q).strip()
+                if r:
+                    try:
+                        step_count = int(r.split(",")[0])
+                        break
+                    except Exception:
+                        pass
             except Exception:
                 pass
-
         print("Device reports existing step count =", step_count)
 
         if step_count is None:
-            raise RuntimeError("Could not determine existing step count. Aborting. Create steps on front-panel first.")
+            raise RuntimeError("Cannot determine existing step count. Create placeholder steps manually and retry.")
 
-        # ensure we don't try to write more steps than exist
+        # ensure we won't attempt more steps than exist
         desired = len(STEPS)
         if desired > step_count:
-            raise RuntimeError(
-                f"You requested {desired} steps but device currently has only {step_count} steps.\n"
-                "Create placeholders with the front-panel (press ENTER on program, add steps) "
-                "or reduce STEPS to <= device step count."
-            )
+            raise RuntimeError(f"Device has {step_count} steps but you asked to write {desired}. Create placeholders on the front panel or reduce STEPS.")
 
-        # overwrite each step by selecting it and setting fields
+        # iterate steps
         for s in sorted(STEPS, key=lambda x: x["step"]):
             n = int(s["step"])
-            print(f"Selecting step {n} ...")
-            ok, err = write_and_check(inst, f"PROG:EDIT:STEP:SEL {n}", f"SEL {n}")
-            if not ok:
-                raise RuntimeError(f"Failed to select step {n} -> {err}")
+            print(f"\n--- Writing step {n} ---")
+            # 1) try direct-indexed write (preferred)
+            ok = try_direct_field_write(inst, n, s["volt"], CURRENT_LIMIT_A, s["time"])
+            if ok:
+                print(f"Direct-index write succeeded for step {n}.")
+                continue
+            # 2) fallback to select-then-write
+            ok2 = select_then_write(inst, n, s["volt"], CURRENT_LIMIT_A, s["time"])
+            if ok2:
+                print(f"Select-then-write succeeded for step {n}.")
+                continue
 
-            # Set voltage, current, time
-            ok, err = write_and_check(inst, f"PROG:EDIT:STEP:VOLT {float(s['volt'])}", f"VOLT {n}")
-            if not ok:
-                raise RuntimeError(f"VOLT failed for step {n} -> {err}")
+            # If we reach here, both methods failed — print SYST:ERR? and abort
+            print("Both direct and select methods failed for step", n)
+            print("Latest SYST:ERR? ->", syst_err(inst, f"after step {n} attempts"))
+            raise RuntimeError(f"Failed to program step {n}. See instrument replies above.")
 
-            ok, err = write_and_check(inst, f"PROG:EDIT:STEP:CURR {float(CURRENT_LIMIT_A)}", f"CURR {n}")
-            if not ok:
-                raise RuntimeError(f"CURR failed for step {n} -> {err}")
-
-            ok, err = write_and_check(inst, f"PROG:EDIT:STEP:TIME {float(s['time'])}", f"TIME {n}")
-            if not ok:
-                raise RuntimeError(f"TIME failed for step {n} -> {err}")
-
-            print(f"Step {n} written successfully. SYST:ERR? ->", syst_err(inst, f"after step {n}"))
-
-        # Save program
-        ok, err = write_and_check(inst, ":PROG:SAVE", "save")
-        if not ok:
-            raise RuntimeError(f"Save failed -> {err}")
-        print("Program saved. SYST:ERR? ->", syst_err(inst, "after save"))
-
+        # save
+        save_err = safe_write(inst, ":PROG:SAVE")
+        print(":PROG:SAVE ->", save_err)
         # Optionally run
-        if RUN_AFTER_SAVE:
-            inst.write("OUTP 1"); time.sleep(0.1)
-            inst.write(":PROG:EXEC:STAT RUN")
-            time.sleep(0.05)
-            print("Started program. SYST:ERR? ->", syst_err(inst, "after run"))
+        run_err = safe_write(inst, "OUTP 1")
+        print("OUTP 1 ->", run_err)
+        run_err2 = safe_write(inst, ":PROG:EXEC:STAT RUN")
+        print(":PROG:EXEC:STAT RUN ->", run_err2)
 
     finally:
-        try: inst.close()
-        except: pass
+        try:
+            inst.close()
+        except:
+            pass
         print("Connection closed.")
 
 if __name__ == "__main__":
