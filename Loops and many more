@@ -1,153 +1,184 @@
-# robust_step_upload.py
+# probe_pbz_commands.py
+# Run this to probe which PROG:STEP / PROG:EDIT commands your PBZ accepts.
+# Usage: python probe_pbz_commands.py
 import pyvisa
 import time
 
-TARGET_RESOURCE = "USB0::0x0B3E::0x1012::EZ002642::INSTR"
+RESOURCE = "USB0::0x0B3E::0x1012::EZ002642::INSTR"   # change if needed
+TIMEOUT_MS = 5000
 
-PROGRAM_SLOT = "1"
-PROGRAM_TITLE = "ACC_D1_TEST"
-LOOP_COUNT = 1
-CURRENT_LIMIT_A = 5.0
-
-NEW_STEPS = [
-    {"step": 1, "volt": 0.0,  "time": 1.0},
-    {"step": 2, "volt": 12.0, "time": 0.1},
-    {"step": 3, "volt": 0.0,  "time": 1.0},
-    {"step": 4, "volt": 13.0, "time": 20.0},
-    {"step": 5, "volt": 0.0,  "time": 2.0},
+# candidate "resize"/"count" commands (write variants)
+RESIZE_CANDIDATES = [
+    ":PROG:STEP:COUN {n}",
+    ":PROG:STEP:COUNT {n}",
+    ":PROG:EDIT:STEP:COUN {n}",
+    ":PROG:EDIT:STEP:COUNT {n}",
+    ":PROG:EDIT:COUN {n}",
+    ":PROG:EDIT:COUNT {n}",
+    ":PROG:STEP:LEN {n}",
+    ":PROG:EDIT:STEP:LEN {n}",
+    ":PROG:STEP:SIZE {n}",
+    ":PROG:EDIT:STEP:SIZE {n}",
 ]
 
-# candidate commands to create/insert steps (we try them if selection fails)
+# candidate "insert/create" commands (write variants)
 INSERT_CANDIDATES = [
-    ":PROG:EDIT:STEP:INS {n}",    # insert step n
+    ":PROG:EDIT:STEP:INS {n}",
     ":PROG:STEP:INS {n}",
-    ":PROG:STEP:NEW {n}",        # create new step n
+    ":PROG:STEP:NEW {n}",
     ":PROG:EDIT:STEP:NEW {n}",
-    ":PROG:EDIT:STEP:CRE {n}",
     ":PROG:STEP:CRE {n}",
+    ":PROG:EDIT:STEP:CRE {n}",
+    ":PROG:STEP:APP {n}",
+    ":PROG:STEP:ADD {n}",
+    ":PROG:EDIT:STEP:ADD {n}",
+    ":PROG:STEP:MAKE {n}",
+    ":PROG:EDIT:STEP:MAKE {n}",
 ]
 
-def read_err(inst, ctx=""):
-    """Query SYST:ERR? and return the raw string (or None if no error)."""
+# candidate field write commands (to try writing fields on selected step)
+FIELD_WRITES = [
+    "PROG:EDIT:STEP:VOLT {v}",
+    "PROG:EDIT:STEP:CURR {i}",
+    "PROG:EDIT:STEP:TIME {t}",
+]
+
+# candidate step query commands (ask for content)
+STEP_QUERIES = [
+    "PROG:STEP:DC? {n}",                # some devices offer DC? query
+    "PROG:EDIT:STEP:DC? {n}",
+    "PROG:STEP:VOLT? {n}",
+    "PROG:EDIT:STEP:VOLT? {n}",
+    "PROG:STEP:CURR? {n}",
+    "PROG:EDIT:STEP:CURR? {n}",
+    "PROG:STEP:TIME? {n}",
+    "PROG:EDIT:STEP:TIME? {n}",
+    "PROG:EDIT:STEP:DC? {n}",
+    "PROG:STEP:STAT? {n}",
+    "PROG:EDIT:STEP:STAT? {n}",
+]
+
+# helper to query SYST:ERR?
+def syst_err(inst, context=""):
     try:
-        resp = inst.query("SYST:ERR?").strip()
-    except Exception as e:
-        return f"EXC querying SYST:ERR? after {ctx}: {e}"
-    if resp == "" or "no error" in resp.lower() or resp.startswith("0,"):
-        return None
-    return resp
+        e = inst.query("SYST:ERR?").strip()
+        return e
+    except Exception as ex:
+        return f"EXC querying SYST:ERR? after {context}: {ex}"
 
-def try_select_step(inst, n):
-    """Try to select step n. Return None on success, or the SYST:ERR? text on failure."""
-    inst.write(f"PROG:EDIT:STEP:SEL {int(n)}")
-    time.sleep(0.05)
-    return read_err(inst, f"SEL {n}")
+def safe_write(inst, cmd):
+    try:
+        inst.write(cmd)
+        time.sleep(0.05)
+        err = syst_err(inst, cmd)
+        return True, err
+    except Exception as ex:
+        return False, f"EXC writing {cmd}: {ex}"
 
-def try_insert_step(inst, n):
-    """Try each insertion candidate for index n. Return tuple(success_bool, last_err_text)."""
-    last_err = None
-    for template in INSERT_CANDIDATES:
-        cmd = template.format(n=int(n))
-        try:
-            inst.write(cmd)
-            time.sleep(0.08)
-        except Exception as e:
-            last_err = f"EXC writing {cmd}: {e}"
-            print(last_err)
-            continue
-        last_err = read_err(inst, f"after '{cmd}'")
-        print(f"Attempted '{cmd}' -> SYST:ERR? = {last_err}")
-        # if instrument returns no error, treat as success
-        if last_err is None:
-            # confirm by trying select
-            sel_err = try_select_step(inst, n)
-            if sel_err is None:
-                return True, None
-            else:
-                # selection still fails; continue trying other insert commands
-                print(f"Insert command succeeded but selection still fails: {sel_err}")
-    return False, last_err
+def safe_query(inst, cmd):
+    try:
+        resp = inst.query(cmd, timeout=TIMEOUT_MS).strip()
+        err = syst_err(inst, cmd)
+        return True, resp, err
+    except Exception as ex:
+        return False, f"EXC querying {cmd}: {ex}", None
 
-def write_step_fields(inst, n, volt, curr, t):
-    """Write the VOLT, CURR and TIME fields for selected step n."""
-    inst.write(f"PROG:EDIT:STEP:VOLT {float(volt)}")
-    e = read_err(inst, f"VOLT {n}")
-    if e: raise RuntimeError(f"VOLT failed for step {n} -> {e}")
+def print_block(title):
+    print("\n" + "="*8 + " " + title + " " + "="*8)
 
-    inst.write(f"PROG:EDIT:STEP:CURR {float(curr)}")
-    e = read_err(inst, f"CURR {n}")
-    if e: raise RuntimeError(f"CURR failed for step {n} -> {e}")
-
-    inst.write(f"PROG:EDIT:STEP:TIME {float(t)}")
-    e = read_err(inst, f"TIME {n}")
-    if e: raise RuntimeError(f"TIME failed for step {n} -> {e}")
-
-def upload_sequence(resource, slot, title, loops, steps, curr_limit):
+def main():
     rm = pyvisa.ResourceManager()
-    inst = rm.open_resource(resource)
+    print("Opening resource:", RESOURCE)
+    inst = rm.open_resource(RESOURCE)
     inst.read_termination = "\n"
     inst.write_termination = "\n"
-    inst.timeout = 8000
+    inst.timeout = TIMEOUT_MS
+    print("IDN:", inst.query("*IDN?").strip())
 
+    # Basic program select so we're in a program context
+    inst.write("*CLS")
+    inst.write("ABORT")
+    inst.write("SYST:REM")
+    time.sleep(0.1)
+    inst.write(':PROG:NAME "1"')
+    time.sleep(0.05)
+    print("After selecting program slot '1', SYST:ERR? ->", syst_err(inst, "select program"))
+
+    # 1) Try resizing candidates to 3 steps (safe small number)
+    print_block("Testing resize/counter commands (try to set 3 steps)")
+    for c in RESIZE_CANDIDATES:
+        cmd = c.format(n=3)
+        ok, result = safe_write(inst, cmd)
+        print(f"WRITE '{cmd}' -> write_ok={ok}, SYST:ERR? = {result}")
+
+        # also try query variations for the count right after
+        queries = [
+            ":PROG:STEP:COUN?",
+            ":PROG:EDIT:STEP:COUN?",
+            ":PROG:STEP:COUNT?",
+            ":PROG:EDIT:STEP:COUNT?",
+            ":PROG:EDIT:COUN?",
+            ":PROG:EDIT:COUNT?",
+        ]
+        for q in queries:
+            qcmd = q
+            try:
+                r = inst.query(qcmd).strip()
+                print(f"  QUERY '{qcmd}' -> '{r}'")
+            except Exception as e:
+                print(f"  QUERY '{qcmd}' EXC -> {e}")
+        print("-"*40)
+
+    # 2) Try selecting step 1 (should fail if none)
+    print_block("Attempt selecting step 1 (PROG:EDIT:STEP:SEL 1)")
     try:
-        print("IDN:", inst.query("*IDN?").strip())
-
-        # basic program header
-        inst.write("*CLS")
-        inst.write("ABORT")
-        inst.write("SYST:REM")
-        time.sleep(0.1)
-        inst.write(f':PROG:NAME "{slot}"')
+        inst.write("PROG:EDIT:STEP:SEL 1")
         time.sleep(0.05)
-        inst.write(f':PROG:EDIT:TITL "{title}"')
-        inst.write(f":PROG:EDIT:LOOP {int(loops)}")
-        time.sleep(0.05)
-        print("Header set. SYST:ERR? ->", read_err(inst, "after header"))
+        print("SYST:ERR? ->", syst_err(inst, "SEL 1"))
+    except Exception as e:
+        print("EXC selecting step:", e)
 
-        # For each step: try select -> if fail, try inserting -> then write fields
-        for s in sorted(steps, key=lambda x: x["step"]):
-            n = s["step"]
-            print(f"\n--- Handling step {n} ---")
-            sel_err = try_select_step(inst, n)
-            if sel_err is None:
-                print(f"Step {n} selectable (already exists).")
-            else:
-                print(f"Selecting step {n} returned error: {sel_err}")
-                print("Trying insert/create candidates...")
-                ok, last_err = try_insert_step(inst, n)
-                if not ok:
-                    # show last instrument error and abort
-                    raise RuntimeError(f"Failed to create step {n}. Last SYST:ERR? -> {last_err}")
+    # 3) Try many insert/create commands for step 1
+    print_block("Trying insert/create candidates for step 1")
+    for template in INSERT_CANDIDATES:
+        cmd = template.format(n=1)
+        ok, result = safe_write(inst, cmd)
+        print(f"WRITE '{cmd}' -> write_ok={ok}, SYST:ERR? = {result}")
 
-            # now we should be able to set fields
-            print(f"Writing fields for step {n}: V={s['volt']} V, I={curr_limit} A, T={s['time']} s")
-            # It's necessary to re-select the step before writing fields (some firmwares require it)
-            inst.write(f"PROG:EDIT:STEP:SEL {int(n)}")
-            time.sleep(0.03)
-            e = read_err(inst, f"re-select {n}")
-            if e:
-                raise RuntimeError(f"Re-select step {n} failed -> {e}")
+    # 4) Try writing fields WITHOUT selecting (to see device errors)
+    print_block("Writing field commands (no select) to see device replies")
+    writes = [
+        f"PROG:EDIT:STEP:VOLT 5.0",
+        f"PROG:EDIT:STEP:CURR 1.0",
+        f"PROG:EDIT:STEP:TIME 1.0",
+    ]
+    for w in writes:
+        ok, result = safe_write(inst, w)
+        print(f"WRITE '{w}' -> write_ok={ok}, SYST:ERR? = {result}")
 
-            write_step_fields(inst, n, s["volt"], curr_limit, s["time"])
-            print(f"Step {n} written. SYST:ERR? ->", read_err(inst, f"after writing step {n}"))
+    # 5) Try queries for step content (step 1)
+    print_block("Querying step content variants for step 1 (queries may error)")
+    for q in STEP_QUERIES:
+        qcmd = q.format(n=1)
+        ok, resp, err = safe_query(inst, qcmd)
+        print(f"QUERY '{qcmd}' -> ok={ok}, resp='{resp}', SYST:ERR? after='{err}'")
 
-        # Save program
-        inst.write(":PROG:SAVE")
-        time.sleep(0.3)
-        print("Saved. SYST:ERR? ->", read_err(inst, "after save"))
+    # 6) Try creating step by writing a 'step select + fields' sequence
+    print_block("Try SELECT 1 then write VOLT/CURR/TIME (catching SYST:ERR?)")
+    inst.write("PROG:EDIT:STEP:SEL 1")
+    time.sleep(0.05)
+    print("After SEL 1, SYST:ERR? ->", syst_err(inst, "SEL 1 (final)"))
+    for w in ["PROG:EDIT:STEP:VOLT 5.0", "PROG:EDIT:STEP:CURR 1.0", "PROG:EDIT:STEP:TIME 0.5"]:
+        ok, result = safe_write(inst, w)
+        print(f"WRITE '{w}' -> write_ok={ok}, SYST:ERR? = {result}")
 
-        # Optionally run
-        inst.write("OUTP 1")
-        time.sleep(0.1)
-        inst.write(":PROG:EXEC:STAT RUN")
-        print("Started. SYST:ERR? ->", read_err(inst, "after start"))
+    # 7) Try to save (harmless)
+    print_block("Trying to save program (:PROG:SAVE)")
+    ok, result = safe_write(inst, ":PROG:SAVE")
+    print(f"SAVE -> write_ok={ok}, SYST:ERR? = {result}")
 
-    finally:
-        try:
-            inst.close()
-        except:
-            pass
-        print("Connection closed.")
+    print("\nPROBE COMPLETE. Close connection.")
+    inst.close()
 
 if __name__ == "__main__":
-    upload_sequence(TARGET_RESOURCE, PROGRAM_SLOT, PROGRAM_TITLE, LOOP_COUNT, NEW_STEPS, CURRENT_LIMIT_A)
+    main()
