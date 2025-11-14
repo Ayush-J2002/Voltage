@@ -1,0 +1,57 @@
+IDN: KIKUSUI,PBZ20-20,EZ002642,2.25
+After selecting program '1' -> 0,"No error"
+
+--- Trying candidate insertion/create commands ---
+WRITE 'PROG:EDIT:STEP:INS 1' -> SYST:ERR? = -100,"Command error"
+WRITE 'PROG:EDIT:STEP:INS' -> SYST:ERR? = -100,"Command error"
+WRITE 'PROG:EDIT:STEP:INS 1,' -> SYST:ERR? = -100,"Command error"
+WRITE 'PROG:EDIT:STEP:INS 1,0' -> SYST:ERR? = -100,"Command error"
+WRITE 'PROG:STEP:INS 1' -> SYST:ERR? = -100,"Command error"
+WRITE 'PROG:STEP:INS' -> SYST:ERR? = -100,"Command error"
+WRITE 'PROG:STEP:INS 1,' -> SYST:ERR? = -100,"Command error"
+WRITE 'PROG:STEP:INS 1,0' -> SYST:ERR? = -100,"Command error"
+WRITE 'PROG:STEP:NEW 1' -> SYST:ERR? = -100,"Command error"
+WRITE 'PROG:STEP:NEW' -> SYST:ERR? = -100,"Command error"
+WRITE 'PROG:STEP:NEW 1,' -> SYST:ERR? = -100,"Command error"
+WRITE 'PROG:STEP:NEW 1,0' -> SYST:ERR? = -100,"Command error"
+WRITE 'PROG:EDIT:STEP:NEW 1' -> SYST:ERR? = -100,"Command error"
+WRITE 'PROG:EDIT:STEP:NEW' -> SYST:ERR? = -100,"Command error"
+WRITE 'PROG:EDIT:STEP:NEW 1,' -> SYST:ERR? = -100,"Command error"
+WRITE 'PROG:EDIT:STEP:NEW 1,0' -> SYST:ERR? = -100,"Command error"
+WRITE 'PROG:STEP:APP 1' -> SYST:ERR? = -100,"Command error"
+WRITE 'PROG:STEP:APP' -> SYST:ERR? = -100,"Command error"
+WRITE 'PROG:STEP:APP 1,' -> SYST:ERR? = -100,"Command error"
+WRITE 'PROG:STEP:APP 1,0' -> SYST:ERR? = -100,"Command error"
+WRITE 'PROG:STEP:ADD 1' -> SYST:ERR? = -100,"Command error"
+WRITE 'PROG:STEP:ADD' -> SYST:ERR? = -100,"Command error"
+WRITE 'PROG:STEP:ADD 1,' -> SYST:ERR? = -100,"Command error"
+WRITE 'PROG:STEP:ADD 1,0' -> SYST:ERR? = -100,"Command error"
+WRITE 'STEP:INS 1' -> SYST:ERR? = -100,"Command error"
+WRITE 'STEP:NEW 1' -> SYST:ERR? = -100,"Command error"
+WRITE 'STEP:APP 1' -> SYST:ERR? = -100,"Command error"
+WRITE 'STEP:ADD 1' -> SYST:ERR? = -100,"Command error"
+WRITE 'PROG:EDIT:STEP:CRE 1' -> SYST:ERR? = -100,"Command error"
+WRITE 'PROG:EDIT:STEP:CRE' -> SYST:ERR? = -100,"Command error"
+WRITE 'PROG:EDIT:STEP:CRE 1,' -> SYST:ERR? = -100,"Command error"
+WRITE 'PROG:EDIT:STEP:CRE 1,0' -> SYST:ERR? = -100,"Command error"
+WRITE 'PROG:EDIT:STEP:LIST 1' -> SYST:ERR? = -100,"Command error"
+WRITE 'PROG:STEP:LIST 1' -> SYST:ERR? = -100,"Command error"
+WRITE 'PROG:EDIT:STEP:SET 1' -> SYST:ERR? = -100,"Command error"
+
+--- Attempt SELECT 1 now ---
+SEL 1 -> 0,"No error"
+EDIT:STEP:SEL 1 -> -100,"Command error"
+
+--- Try writing fields (VOLT/CURR/TIME) now ---
+WRITE 'PROG:EDIT:STEP:VOLT 3.0' -> 0,"No error"
+WRITE 'PROG:EDIT:STEP:CURR 1.0' -> -221,"Settings conflict"
+WRITE 'PROG:EDIT:STEP:TIME 0.5' -> 0,"No error"
+
+--- Query some counts ---
+QUERY ':PROG:EDIT:COUN?' -> 1
+QUERY ':PROG:EDIT:COUNT?' -> 1
+QUERY ':PROG:STEP:COUN?' -> EXC query :PROG:STEP:COUN?: VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
+QUERY ':PROG:STEP:COUNT?' -> EXC query :PROG:STEP:COUNT?: VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
+QUERY ':PROG:EDIT:STEP:COUN?' -> EXC query :PROG:EDIT:STEP:COUN?: VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
+
+Probe finished.
