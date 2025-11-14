@@ -10,14 +10,13 @@ TARGET_RESOURCE = "USB0::0x0B3E::0x1012::EZ002642::INSTR"
 PROGRAM_SLOT = "1"
 
 # CHOOSE TITLE AND LOOP COUNT
-PROGRAM_TITLE = "ACC_D1_TEST"
+PROGRAM_TITLE = "ACC_D1_FINAL"
 LOOP_COUNT = 1
 
 # CHOOSE CURRENT LIMIT (Your OCP is 6A, so 5.0 is safe)
 CURRENT_LIMIT = 5.0
 
-# DEFINE YOUR STEPS (Using ACC Pattern D1 from your image)
-# (Step Number, Voltage, Time in Seconds)
+# DEFINE YOUR STEPS
 PATTERN_TO_UPLOAD = [
     {'step': 1, 'volt': 0.0, 'time': 1.0},    # Start OFF for 1s
     {'step': 2, 'volt': 12.0, 'time': 0.1},   # 12V for 100ms
@@ -48,20 +47,21 @@ def upload_and_run_sequence(inst, slot, title, loops, current, steps_list):
         inst.write(f':PROG:NAME "{slot}"')
         time.sleep(1.0) # Give device time to load the program
 
-        # --- 3. CONFIGURE HEADER (Title & Loop) ---
-        print(f"3. Setting Title to '{title}' and Loops to {loops}...")
+        # --- 3. CONFIGURE HEADER (Title, Loop, and MODE) ---
+        print(f"3. Setting Title, Loops, and CV Mode...")
         inst.write(f':PROG:EDIT:TITL "{title}"')
         inst.write(f':PROG:EDIT:LOOP {loops}')
+        
+        # --- THIS IS THE FIX ---
+        # We must set the Program's mode to CV to resolve
+        # the -221 "Settings conflict" error. (Page 56)
+        inst.write(':PROG:EDIT:FUNCtion:MODE CV')
         
         # --- 4. RESIZE PROGRAM ---
         step_count = len(steps_list)
         print(f"4. Deleting old steps and adding {step_count} new steps...")
         
-        # Delete all old steps (Page 56)
         inst.write(':PROG:EDIT:DELete') 
-        
-        # --- THIS IS THE FIX ---
-        # The correct command from Page 55 is :PROG:EDIT:ADD
         inst.write(f':PROG:EDIT:ADD {step_count}') 
         
         # Check for error *immediately* after the resize
@@ -71,7 +71,7 @@ def upload_and_run_sequence(inst, slot, title, loops, current, steps_list):
             print("   Stopping script.")
             return
 
-        # --- 5. UPLOAD STEPS (THE CORRECT WAY) ---
+        # --- 5. UPLOAD STEPS ---
         print("5. Uploading steps (one by one)...")
         for s in steps_list:
             step_num = s['step']
@@ -90,7 +90,6 @@ def upload_and_run_sequence(inst, slot, title, loops, current, steps_list):
             inst.write(f":PROG:EDIT:STEP:TIME {s['time']}")
             
             # 5. Set Output State (Page 63)
-            # (Output=ON, TrigOut=OFF, TrigIn=OFF)
             inst.write(':PROG:EDIT:STEP:STAT ON, OFF, OFF')
 
             # Check for errors
