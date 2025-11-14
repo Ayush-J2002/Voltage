@@ -1,135 +1,156 @@
 import pyvisa
 import time
 
-# --- (1) --- EDIT YOUR TEST HERE --- (1) ---
+# -------------------- EDIT THESE --------------------
+TARGET_RESOURCE = "USB0::0x0B3E::0x1012::EZ002642::INSTR"  # <-- your VISA address
+PROGRAM_SLOT    = "1"                                     # "1", "2", ...
+PROGRAM_TITLE   = "ACC_D1_TEST"
+LOOP_COUNT      = 1
+CURRENT_LIMIT_A = 5.0                                     # safe under 6 A OCP
 
-# UPDATE WITH YOUR ADDRESS
-TARGET_RESOURCE = "USB0::0x0B3E::0x1012::EZ002642::INSTR" 
-
-# CHOOSE PROGRAM SLOT (Your device expects "1", "2", etc.)
-PROGRAM_SLOT = "1"
-
-# CHOOSE TITLE AND LOOP COUNT
-PROGRAM_TITLE = "ACC_D1_TEST"
-LOOP_COUNT = 1
-
-# CHOOSE CURRENT LIMIT (Your OCP is 6A, so 5.0 is safe)
-CURRENT_LIMIT = 5.0
-
-# DEFINE YOUR STEPS (Using ACC Pattern D1 from your image)
-# (Step Number, Voltage, Time in Seconds)
-# You can replace this with any pattern you want.
-PATTERN_TO_UPLOAD = [
-    {'step': 1, 'volt': 0.0, 'time': 1.0},    # Start OFF for 1s
-    {'step': 2, 'volt': 12.0, 'time': 0.1},   # 12V for 100ms
-    {'step': 3, 'volt': 0.0, 'time': 1.0},    # OFF for 1s (during sweep)
-    {'step': 4, 'volt': 13.0, 'time': 20.0},  # 13V for 20s
-    {'step': 5, 'volt': 0.0, 'time': 2.0}     # OFF for 2s
+# Example pattern (step#, voltage[V], dwell[s])
+NEW_STEPS = [
+    {"step": 1, "volt": 0.0,  "time": 1.0},
+    {"step": 2, "volt": 12.0, "time": 0.1},
+    {"step": 3, "volt": 0.0,  "time": 1.0},
+    {"step": 4, "volt": 13.0, "time": 20.0},
+    {"step": 5, "volt": 0.0,  "time": 2.0},
 ]
-# --- (End of Edit Section) ---
+# ----------------------------------------------------
 
 
-def upload_and_run_sequence(inst, slot, title, loops, current, steps_list):
+def check_err(inst, ctx=""):
+    """Query and raise if any instrument error is present."""
+    err = inst.query("SYST:ERR?").strip()
+    if not err.lower().startswith("0") and "no error" not in err.lower():
+        raise RuntimeError(f"SCPI error after {ctx}: {err}")
+    return err
+
+
+def pick_program(inst, slot):
+    """Select a program slot. On PBZ this is done by naming the program."""
+    inst.write("*CLS")
+    inst.write("ABORT")
+    inst.write("SYST:REM")
+    time.sleep(0.2)
+    inst.write(f':PROG:NAME "{slot}"')   # select/create PRG.<slot>
+    time.sleep(0.1)
+    check_err(inst, "selecting program")
+
+
+def set_header(inst, title, loops):
+    """Set title and loop count for the selected program."""
+    inst.write(f':PROG:EDIT:TITL "{title}"')
+    inst.write(f":PROG:EDIT:LOOP {int(loops)}")
+    check_err(inst, "setting title/loop")
+
+
+def resize_steps(inst, count):
+    """Resize the program to 'count' steps."""
+    inst.write(f":PROG:STEP:COUN {int(count)}")
+    check_err(inst, f"resizing to {count} steps")
+
+
+def write_step_dc(inst, n, volt, curr_lim, dwell_s):
+    """Write a single DC step n with voltage, current limit, and dwell time."""
+    cmd = f":PROG:STEP:DC {int(n)}, {float(volt)}, {float(curr_lim)}, {float(dwell_s)}"
+    inst.write(cmd)
+    check_err(inst, f"writing step {n}")
+
+
+def save_program(inst):
+    inst.write(":PROG:SAVE")
+    time.sleep(0.5)
+    check_err(inst, "saving program")
+
+
+def run_program(inst):
+    inst.write("OUTP 1")
+    time.sleep(0.2)
+    inst.write(":PROG:EXEC:STAT RUN")
+    check_err(inst, "starting execution")
+
+
+def replace_steps(inst, steps, current_limit_a):
     """
-    This function correctly uploads a full sequence to the PBZ's
-    internal memory and then runs it.
+    Replace the entire step table with 'steps' (list of dicts with keys
+    step/volt/time). Steps are written by their 'step' index.
     """
-    try:
-        # --- 1. RESET AND SETUP ---
-        print("1. Resetting device and clearing errors...")
-        inst.write('*CLS')   # Clear errors
-        inst.write('ABORT') # Stop any running sequence
-        inst.write('SYST:REM') # Force Remote Mode
-        time.sleep(0.5)
+    if not steps:
+        raise ValueError("Steps list is empty.")
 
-        # --- 2. SELECT PROGRAM SLOT ---
-        print(f"2. Selecting Program Slot: '{slot}'")
-        inst.write(f':PROG:NAME "{slot}"')
-        time.sleep(0.2) # Short pause for device to process
+    # Ensure step indices are 1..N and consistent
+    steps_sorted = sorted(steps, key=lambda s: s["step"])
+    for i, s in enumerate(steps_sorted, start=1):
+        if s["step"] != i:
+            raise ValueError("Step numbers must be contiguous starting at 1.")
 
-        # --- 3. CONFIGURE HEADER (Title & Loop) ---
-        # These commands are working for you
-        print(f"3. Setting Title to '{title}' and Loops to {loops}...")
-        inst.write(f':PROG:EDIT:TITL "{title}"')
-        inst.write(f':PROG:EDIT:LOOP {loops}')
-        
-        # --- 4. RESIZE PROGRAM ---
-        step_count = len(steps_list)
-        print(f"4. Resizing program to {step_count} steps...")
-        inst.write(f':PROG:STEP:COUN {step_count}')
-        
-        # --- 5. UPLOAD STEPS ---
-        print("5. Uploading steps...")
-        for s in steps_list:
-            
-            # --- THIS IS THE FIX ---
-            # The correct command for a DC step on a PBZ is "PROG:STEP:DC"
-            # Old (Wrong) Command: :PROG:EDIT ...
-            # New (Correct) Command:
-            cmd = f":PROG:STEP:DC {s['step']}, {s['volt']}, {current}, {s['time']}"
-            
-            print(f"   Writing Step {s['step']}: {s['volt']}V for {s['time']}s")
-            inst.write(cmd)
-            
-            # Check for errors after each step
-            err = inst.query('SYST:ERR?')
-            if "No error" not in err:
-                print(f"   !!! ERROR on Step {s['step']}: {err.strip()} !!!")
-                print("   Stopping script.")
-                return # Stop if one step fails
+    resize_steps(inst, len(steps_sorted))
+    for s in steps_sorted:
+        write_step_dc(inst, s["step"], s["volt"], current_limit_a, s["time"])
+    save_program(inst)
 
-        # --- 6. SAVE PROGRAM TO MEMORY ---
-        print("6. Saving program to device EEPROM...")
-        inst.write(':PROG:SAVE')
-        time.sleep(1.0) # Give it time to save
 
-        print("\n--- PROGRAM UPLOAD COMPLETE ---")
-        print("Check device screen: Title and Steps should be updated.")
-
-        # --- 7. RUN THE PROGRAM ---
-        print("7. Turning OUTPUT ON and RUNNING sequence...")
-        inst.write('OUTP 1')
-        time.sleep(0.5)
-        inst.write(':PROG:EXEC:STAT RUN')
-        
-        print("\n--- SEQUENCE IS RUNNING ---")
-
-    except Exception as e:
-        print(f"CRITICAL ERROR: {e}")
+def update_one_step(inst, step_no, volt=None, dwell_s=None, current_limit_a=None):
+    """
+    Edit a single step n in-place. Any argument left as None will be read back
+    (if supported) or left unchanged by rewriting with the old value.
+    On PBZ, the safest cross-version method is to *rewrite* the whole line.
+    So you should pass all values you want; otherwise this tries a best effort.
+    """
+    # Best practice: pass every field you want to guarantee.
+    if volt is None or dwell_s is None or current_limit_a is None:
+        # If your firmware supports it, you can try queries like:
+        #   ":PROG:STEP:DC? n"
+        # Not all versions reply; if it fails, you'll need to supply values.
         try:
-            inst.write('OUTP 0') # Safety off
-        except:
-            pass
+            reply = inst.query(f":PROG:STEP:DC? {int(step_no)}").strip()
+            # Expected format (typical): "VOLT,CURR,TIME"
+            parts = [p.strip() for p in reply.split(",")]
+            v_old = float(parts[0]) if volt is None else volt
+            i_old = float(parts[1]) if current_limit_a is None else current_limit_a
+            t_old = float(parts[2]) if dwell_s is None else dwell_s
+            write_step_dc(inst, step_no, v_old, i_old, t_old)
+            save_program(inst)
+            return
+        except Exception:
+            raise ValueError(
+                "Firmware did not return step parameters. "
+                "Please provide volt, dwell_s, and current_limit_a."
+            )
 
-# --- Main execution ---
+    # If everything is provided, just rewrite:
+    write_step_dc(inst, step_no, volt, current_limit_a, dwell_s)
+    save_program(inst)
+
+
+def main():
+    rm = pyvisa.ResourceManager()
+    inst = rm.open_resource(TARGET_RESOURCE)
+    inst.read_termination = "\n"
+    inst.write_termination = "\n"
+    inst.timeout = 5000
+
+    print(inst.query("*IDN?").strip())
+
+    # --- Select program & set header
+    pick_program(inst, PROGRAM_SLOT)
+    set_header(inst, PROGRAM_TITLE, LOOP_COUNT)
+
+    # --- Replace the entire step table (ADD/EDIT STEPS HERE)
+    replace_steps(inst, NEW_STEPS, CURRENT_LIMIT_A)
+    print("Step table written & saved.")
+
+    # --- Example: tweak only step 2 later (12.5 V for 0.2 s)
+    # update_one_step(inst, step_no=2, volt=12.5, dwell_s=0.2, current_limit_a=CURRENT_LIMIT_A)
+
+    # --- Run it (comment out if you only want to edit)
+    run_program(inst)
+    print("Sequence running.")
+
+    inst.close()
+    print("Connection closed.")
+
+
 if __name__ == "__main__":
-    pbz = None
-    try:
-        # Open connection
-        rm = pyvisa.ResourceManager()
-        pbz = rm.open_resource(TARGET_RESOURCE)
-        pbz.read_termination = '\n'
-        pbz.write_termination = '\n'
-        pbz.timeout = 5000 # 5 second timeout
-        
-        print(f"Connected to: {pbz.query('*IDN?').strip()}")
-
-        # Call the new function with all your settings
-        upload_and_run_sequence(
-            inst=pbz,
-            slot=PROGRAM_SLOT,
-            title=PROGRAM_TITLE,
-            loops=LOOP_COUNT,
-            current=CURRENT_LIMIT,
-            steps_list=PATTERN_TO_UPLOAD
-        )
-
-    except Exception as e:
-        print(f"Failed to connect or run: {e}")
-        
-    finally:
-        if pbz:
-            # You can choose to turn output off at the end
-            # pbz.write('OUTP 0')
-            pbz.close()
-            print("Connection closed.")
+    main()
