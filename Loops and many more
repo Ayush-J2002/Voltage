@@ -1,79 +1,130 @@
-# probe_more_variants.py
-# Tries many small syntactic variants for creating/inserting steps on PBZ.
-import pyvisa, time
+import pyvisa
+import time
 
-RESOURCE = "USB0::0x0B3E::0x1012::EZ002642::INSTR"  # change if needed
-rm = pyvisa.ResourceManager()
-inst = rm.open_resource(RESOURCE)
-inst.read_termination = "\n"
-inst.write_termination = "\n"
-inst.timeout = 5000
+# ---------- EDIT THESE ----------
+RESOURCE = "USB0::0x0B3E::0x1012::EZ002642::INSTR"
+PROGRAM_SLOT = "1"
+PROGRAM_TITLE = "ACC_D1_TEST"
+LOOP_COUNT = 1
+CURRENT_LIMIT_A = 5.0
 
-def syserr(ctx=""):
+# Specify what you want each step to contain.
+# IMPORTANT: the device must already have at least len(STEPS) steps created (via front-panel).
+STEPS = [
+    {"step": 1, "volt": 0.0,  "time": 1.0},
+    {"step": 2, "volt": 12.0, "time": 0.1},
+    {"step": 3, "volt": 0.0,  "time": 1.0},
+    {"step": 4, "volt": 13.0, "time": 20.0},
+    {"step": 5, "volt": 0.0,  "time": 2.0},
+]
+RUN_AFTER_SAVE = True
+# --------------------------------
+
+def syst_err(inst, ctx=""):
     try:
         return inst.query("SYST:ERR?").strip()
     except Exception as e:
         return f"EXC querying SYST:ERR? after {ctx}: {e}"
 
-def try_write(cmd):
+def query_int(inst, q):
     try:
-        inst.write(cmd)
-        time.sleep(0.06)
-        return syserr(cmd)
-    except Exception as e:
-        return f"EXC writing {cmd}: {e}"
+        resp = inst.query(q).strip()
+        return int(resp.split(",")[0])
+    except Exception:
+        return None
 
-print("IDN:", inst.query("*IDN?").strip())
-inst.write("*CLS"); inst.write("ABORT"); inst.write("SYST:REM")
-time.sleep(0.05)
-inst.write(':PROG:NAME "1"')
-time.sleep(0.05)
-print("After selecting program '1' ->", syserr("select program"))
+def write_and_check(inst, cmd, ctx=""):
+    inst.write(cmd)
+    time.sleep(0.06)
+    e = syst_err(inst, ctx)
+    if e is None:
+        return True, None
+    return False, e
 
-candidates = []
+def main():
+    rm = pyvisa.ResourceManager()
+    inst = rm.open_resource(RESOURCE)
+    inst.read_termination = "\n"
+    inst.write_termination = "\n"
+    inst.timeout = 5000
 
-# variants with/without parameter
-candidates += [ "PROG:EDIT:STEP:INS 1", "PROG:EDIT:STEP:INS", "PROG:EDIT:STEP:INS 1,", "PROG:EDIT:STEP:INS 1,0" ]
-candidates += [ "PROG:STEP:INS 1", "PROG:STEP:INS", "PROG:STEP:INS 1,", "PROG:STEP:INS 1,0" ]
-candidates += [ "PROG:STEP:NEW 1", "PROG:STEP:NEW", "PROG:STEP:NEW 1,", "PROG:STEP:NEW 1,0" ]
-candidates += [ "PROG:EDIT:STEP:NEW 1", "PROG:EDIT:STEP:NEW", "PROG:EDIT:STEP:NEW 1,", "PROG:EDIT:STEP:NEW 1,0" ]
-candidates += [ "PROG:STEP:APP 1", "PROG:STEP:APP", "PROG:STEP:APP 1,", "PROG:STEP:APP 1,0" ]
-candidates += [ "PROG:STEP:ADD 1", "PROG:STEP:ADD", "PROG:STEP:ADD 1,", "PROG:STEP:ADD 1,0" ]
-
-# try older-style 'STEP' namespace without 'PROG:' prefix (some firmwares use different root)
-candidates += [ "STEP:INS 1", "STEP:NEW 1", "STEP:APP 1", "STEP:ADD 1" ]
-
-# try create commands with parentheses / commas
-candidates += [ "PROG:EDIT:STEP:CRE 1", "PROG:EDIT:STEP:CRE", "PROG:EDIT:STEP:CRE 1,", "PROG:EDIT:STEP:CRE 1,0" ]
-
-# Try a write that sets the entire steps in one command (some firmwares use SET with list)
-candidates += [ 'PROG:EDIT:STEP:LIST 1', 'PROG:STEP:LIST 1', 'PROG:EDIT:STEP:SET 1' ]
-
-print("\n--- Trying candidate insertion/create commands ---")
-for c in candidates:
-    resp = try_write(c)
-    print(f"WRITE '{c}' -> SYST:ERR? = {resp}")
-
-# Try selecting step 1 after attempts
-print("\n--- Attempt SELECT 1 now ---")
-resp = try_write("PROG:EDIT:STEP:SEL 1")
-print("SEL 1 ->", resp)
-
-# If select still fails, try selecting without PROG: prefix
-resp = try_write("EDIT:STEP:SEL 1")
-print("EDIT:STEP:SEL 1 ->", resp)
-
-print("\n--- Try writing fields (VOLT/CURR/TIME) now ---")
-for w in ["PROG:EDIT:STEP:VOLT 3.0", "PROG:EDIT:STEP:CURR 1.0", "PROG:EDIT:STEP:TIME 0.5"]:
-    print(f"WRITE '{w}' ->", try_write(w))
-
-print("\n--- Query some counts ---")
-for q in [":PROG:EDIT:COUN?", ":PROG:EDIT:COUNT?", ":PROG:STEP:COUN?", ":PROG:STEP:COUNT?", ":PROG:EDIT:STEP:COUN?"]:
     try:
-        r = inst.query(q).strip()
-    except Exception as e:
-        r = f"EXC query {q}: {e}"
-    print(f"QUERY '{q}' -> {r}")
+        print("IDN:", inst.query("*IDN?").strip())
 
-inst.close()
-print("\nProbe finished.")
+        # select program slot and header
+        inst.write("*CLS"); inst.write("ABORT"); inst.write("SYST:REM")
+        time.sleep(0.05)
+        inst.write(f':PROG:NAME "{PROGRAM_SLOT}"')
+        time.sleep(0.05)
+        inst.write(f':PROG:EDIT:TITL "{PROGRAM_TITLE}"')
+        inst.write(f":PROG:EDIT:LOOP {int(LOOP_COUNT)}")
+        time.sleep(0.05)
+        print("Header set. SYST:ERR? ->", syst_err(inst, "header"))
+
+        # read how many steps exist in the current program (some queries time out; try a reliable one)
+        step_count = query_int(inst, ":PROG:EDIT:COUN?")
+        if step_count is None:
+            # fallback to other query that worked in your logs
+            try:
+                resp = inst.query(":PROG:EDIT:COUNT?").strip()
+                step_count = int(resp.split(",")[0])
+            except Exception:
+                pass
+
+        print("Device reports existing step count =", step_count)
+
+        if step_count is None:
+            raise RuntimeError("Could not determine existing step count. Aborting. Create steps on front-panel first.")
+
+        # ensure we don't try to write more steps than exist
+        desired = len(STEPS)
+        if desired > step_count:
+            raise RuntimeError(
+                f"You requested {desired} steps but device currently has only {step_count} steps.\n"
+                "Create placeholders with the front-panel (press ENTER on program, add steps) "
+                "or reduce STEPS to <= device step count."
+            )
+
+        # overwrite each step by selecting it and setting fields
+        for s in sorted(STEPS, key=lambda x: x["step"]):
+            n = int(s["step"])
+            print(f"Selecting step {n} ...")
+            ok, err = write_and_check(inst, f"PROG:EDIT:STEP:SEL {n}", f"SEL {n}")
+            if not ok:
+                raise RuntimeError(f"Failed to select step {n} -> {err}")
+
+            # Set voltage, current, time
+            ok, err = write_and_check(inst, f"PROG:EDIT:STEP:VOLT {float(s['volt'])}", f"VOLT {n}")
+            if not ok:
+                raise RuntimeError(f"VOLT failed for step {n} -> {err}")
+
+            ok, err = write_and_check(inst, f"PROG:EDIT:STEP:CURR {float(CURRENT_LIMIT_A)}", f"CURR {n}")
+            if not ok:
+                raise RuntimeError(f"CURR failed for step {n} -> {err}")
+
+            ok, err = write_and_check(inst, f"PROG:EDIT:STEP:TIME {float(s['time'])}", f"TIME {n}")
+            if not ok:
+                raise RuntimeError(f"TIME failed for step {n} -> {err}")
+
+            print(f"Step {n} written successfully. SYST:ERR? ->", syst_err(inst, f"after step {n}"))
+
+        # Save program
+        ok, err = write_and_check(inst, ":PROG:SAVE", "save")
+        if not ok:
+            raise RuntimeError(f"Save failed -> {err}")
+        print("Program saved. SYST:ERR? ->", syst_err(inst, "after save"))
+
+        # Optionally run
+        if RUN_AFTER_SAVE:
+            inst.write("OUTP 1"); time.sleep(0.1)
+            inst.write(":PROG:EXEC:STAT RUN")
+            time.sleep(0.05)
+            print("Started program. SYST:ERR? ->", syst_err(inst, "after run"))
+
+    finally:
+        try: inst.close()
+        except: pass
+        print("Connection closed.")
+
+if __name__ == "__main__":
+    main()
