@@ -1,149 +1,130 @@
-# acc_full_run.py
 import pyvisa
 import time
-import math
 
-TARGET_RESOURCE = "USB0::0x0B3E::0x1012::EZ002642::INSTR"  # ACC device
+# --- (1) --- EDIT YOUR TEST HERE --- (1) ---
 
-def open_inst(resource=TARGET_RESOURCE, timeout_ms=20000):
-    rm = pyvisa.ResourceManager()
-    print("VISA resources:", rm.list_resources())
-    inst = rm.open_resource(resource)
-    inst.read_termination = '\n'
-    inst.write_termination = '\n'
-    inst.timeout = timeout_ms
-    return inst
+# UPDATE WITH YOUR ADDRESS
+TARGET_RESOURCE = "USB0::0x0B3E::0x0120::EZ002642::INSTR" 
 
-def do_opc(inst):
+# CHOOSE PROGRAM SLOT (Your device expects "1", "2", etc.)
+PROGRAM_SLOT = "1"
+
+# CHOOSE TITLE AND LOOP COUNT
+PROGRAM_TITLE = "ACC_D1_TEST"
+LOOP_COUNT = 1
+
+# CHOOSE CURRENT LIMIT (Your OCP is 6A, so 5.0 is safe)
+CURRENT_LIMIT = 5.0
+
+# DEFINE YOUR STEPS (Using ACC Pattern D1 from your image)
+# (Step, Voltage, Time in Seconds)
+ACC_PATTERN_D1 = [
+    {'step': 1, 'volt': 0.0, 'time': 1.0},    # Start OFF for 1s
+    {'step': 2, 'volt': 12.0, 'time': 0.1},   # 12V for 100ms
+    {'step': 3, 'volt': 0.0, 'time': 1.0},    # OFF for 1s (during sweep)
+    {'step': 4, 'volt': 13.0, 'time': 20.0},  # 13V for 20s
+    {'step': 5, 'volt': 0.0, 'time': 2.0}     # OFF for 2s
+]
+# --- (End of Edit Section) ---
+
+
+def upload_and_run_sequence(inst, slot, title, loops, current, steps_list):
+    """
+    This function correctly uploads a full sequence to the PBZ's
+    internal memory and then runs it.
+    """
     try:
-        return inst.query('*OPC?').strip()
-    except Exception:
-        # fallback small delay
-        time.sleep(0.05)
-        return None
+        # --- 1. RESET AND SETUP ---
+        print("1. Resetting device and clearing errors...")
+        inst.write('*CLS')   # Clear errors
+        inst.write('ABORT') # Stop any running sequence
+        inst.write('SYST:REM') # Force Remote Mode
+        time.sleep(0.5)
 
-def set_program_title_and_loop(inst, program=1, title="PYTHON_TEST", loop_count=1):
-    # select program
-    inst.write(f'PROG:NAME "{program}"')
-    time.sleep(0.08)
-    # set program title
-    inst.write(f'PROG:EDIT:TITL "{title}"')
-    do_opc(inst)
-    # set program loop count (program-level loop)
-    inst.write(f'PROG:EDIT:LOOP {loop_count}')
-    do_opc(inst)
-    # verify
-    try:
-        rb = inst.query('PROG:EDIT:TITL?').strip()
-        loop_rb = inst.query('PROG:EDIT:LOOP?').strip()
+        # --- 2. SELECT PROGRAM SLOT ---
+        print(f"2. Selecting Program Slot: '{slot}'")
+        inst.write(f':PROG:NAME "{slot}"')
+        time.sleep(0.2) # Short pause for device to process
+
+        # --- 3. CONFIGURE HEADER (Title & Loop) ---
+        # This uses your working commands
+        print(f"3. Setting Title to '{title}' and Loops to {loops}...")
+        inst.write(f':PROG:EDIT:TITL "{title}"')
+        inst.write(f':PROG:EDIT:LOOP {loops}')
+        
+        # --- 4. RESIZE PROGRAM ---
+        step_count = len(steps_list)
+        print(f"4. Resizing program to {step_count} steps...")
+        inst.write(f':PROG:STEP:COUN {step_count}')
+        
+        # --- 5. UPLOAD STEPS ---
+        print("5. Uploading steps...")
+        for s in steps_list:
+            # Syntax: :PROG:EDIT <Step>, <Volts>, <Amps>, <Time>, <TrigOut>, <Status>
+            # TrigOut=0 (Off), Status=1 (Output ON during this step)
+            cmd = f":PROG:EDIT {s['step']}, {s['volt']}, {current}, {s['time']}, 0, 1"
+            print(f"   Writing Step {s['step']}: {s['volt']}V for {s['time']}s")
+            inst.write(cmd)
+            
+            # Check for errors after each step
+            err = inst.query('SYST:ERR?')
+            if "No error" not in err:
+                print(f"   !!! ERROR on Step {s['step']}: {err.strip()} !!!")
+                print("   Stopping script.")
+                return # Stop if one step fails
+
+        # --- 6. SAVE PROGRAM TO MEMORY ---
+        print("6. Saving program to device EEPROM...")
+        inst.write(':PROG:SAVE')
+        time.sleep(1.0) # Give it time to save
+
+        print("\n--- PROGRAM UPLOAD COMPLETE ---")
+        print("Check device screen: Title and Steps should be updated.")
+
+        # --- 7. RUN THE PROGRAM ---
+        print("7. Turning OUTPUT ON and RUNNING sequence...")
+        inst.write('OUTP 1')
+        time.sleep(0.5)
+        inst.write(':PROG:EXEC:STAT RUN')
+        
+        print("\n--- SEQUENCE IS RUNNING ---")
+
     except Exception as e:
-        rb = f"<readback error: {e}>"
-        loop_rb = "<readback error>"
-    print("Program title readback:", repr(rb))
-    print("Program loop readback:", loop_rb)
-
-def set_voltage(inst, v):
-    inst.write(f':SOUR:VOLT {v:.6f}')
-    # give device a short moment to accept
-    do_opc(inst)
-
-def ramp_voltage(inst, v_from, v_to, step_ms=5, max_steps=300):
-    """Linear ramp between two voltages in small steps. step_ms in milliseconds."""
-    if abs(v_to - v_from) < 1e-6:
-        set_voltage(inst, v_to)
-        return
-    step_s = max(0.001, step_ms / 1000.0)
-    delta = v_to - v_from
-    # choose number of steps limited by max_steps to avoid too many USB writes
-    steps = min(max_steps, max(1, int(math.ceil(abs(delta) / 0.01))))
-    step_val = delta / steps
-    v = v_from
-    for i in range(steps):
-        v += step_val
-        inst.write(f':SOUR:VOLT {v:.6f}')
-        time.sleep(step_s)
-    # final exact
-    inst.write(f':SOUR:VOLT {v_to:.6f}')
-    do_opc(inst)
-
-def run_acc_pattern(inst, pattern_steps, loops=1, ramp_step_ms=None, current_limit=None, leave_output_on=False):
-    """
-    pattern_steps: list of (voltage, duration_seconds) pairs, e.g.
-      [(13.0,1.0), (12.0,20.0), (13.0,2.0)]
-    loops: repeat count (int)
-    ramp_step_ms: if set, ramp between step voltages in increments every ramp_step_ms ms
-    current_limit: optional current limit (A)
-    """
-    # safety: start with output off
-    try:
-        inst.write(':OUTP OFF')
-    except Exception:
-        pass
-
-    if current_limit is not None:
-        inst.write(f':SOUR:CURR {current_limit:.6f}')
-        do_opc(inst)
-
-    # initial voltage = current instrument source or first step
-    first_v = float(pattern_steps[0][0])
-    set_voltage(inst, first_v)
-
-    for loopi in range(loops):
-        print(f"Starting loop {loopi+1}/{loops}")
-        for i, (v, duration) in enumerate(pattern_steps):
-            v = float(v)
-            duration = float(duration)
-            if i == 0:
-                # already set to first step; if ramp requested and previous loop ended different, we can ramp
-                set_voltage(inst, v)
-            else:
-                prev_v = float(pattern_steps[i-1][0])
-                if ramp_step_ms:
-                    ramp_voltage(inst, prev_v, v, step_ms=ramp_step_ms)
-                else:
-                    set_voltage(inst, v)
-
-            # enable output if not already
-            inst.write(':OUTP ON')
-            # duration wait
-            end_t = time.time() + duration
-            while time.time() < end_t:
-                # small sleep to be interruptible
-                time.sleep(min(0.1, end_t - time.time()))
-
-        # end of single program loop, optionally turn off briefly
-        inst.write(':OUTP OFF')
-        time.sleep(0.1)
-
-    # final behavior
-    if leave_output_on:
-        set_voltage(inst, float(pattern_steps[-1][0]))
-        inst.write(':OUTP ON')
-    else:
-        inst.write(':OUTP OFF')
-    print("ACC pattern run complete.")
-
-if __name__ == "__main__":
-    inst = open_inst()
-    try:
-        # 1) set the program title & loop at PROGRAM level (this will appear in RECALL/PROGRAM menu)
-        set_program_title_and_loop(inst, program=1, title="PYTHON_TEST_ACC", loop_count=3)
-
-        # 2) Define ACC pattern (edit to match your diagram exactly)
-        # Example from your diagram: 13V for 1s, 12V for 20s, 13V for 2s
-        pattern = [
-            (13.0, 1.0),
-            (12.0, 20.0),
-            (13.0, 2.0),
-        ]
-
-        # If you need IG2-style fine sweep configure ramp_step_ms small (e.g. 5 ms).
-        # Note: Windows/Python + USB latency limits precision under ~10 ms.
-        run_acc_pattern(inst, pattern_steps=pattern, loops=3, ramp_step_ms=5, current_limit=5.0, leave_output_on=False)
-
-    finally:
+        print(f"CRITICAL ERROR: {e}")
         try:
-            inst.write(':OUTP OFF')
-        except Exception:
+            inst.write('OUTP 0') # Safety off
+        except:
             pass
-        inst.close()
+
+# --- Main execution ---
+if __name__ == "__main__":
+    pbz = None
+    try:
+        # Open connection
+        rm = pyvisa.ResourceManager()
+        pbz = rm.open_resource(TARGET_RESOURCE)
+        pbz.read_termination = '\n'
+        pbz.write_termination = '\n'
+        pbz.timeout = 5000 # 5 second timeout
+        
+        print(f"Connected to: {pbz.query('*IDN?').strip()}")
+
+        # Call the new function with all your settings
+        upload_and_run_sequence(
+            inst=pbz,
+            slot=PROGRAM_SLOT,
+            title=PROGRAM_TITLE,
+            loops=LOOP_COUNT,
+            current=CURRENT_LIMIT,
+            steps_list=ACC_PATTERN_D1
+        )
+
+    except Exception as e:
+        print(f"Failed to connect or run: {e}")
+        
+    finally:
+        if pbz:
+            # You can choose to turn output off at the end
+            # pbz.write('OUTP 0')
+            pbz.close()
+            print("Connection closed.")
