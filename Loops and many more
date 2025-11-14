@@ -1,25 +1,16 @@
-# try_many_variants.py
-# Robust attempt to program existing steps on KIKUSUI PBZ20-20 (FW 2.25).
-# Run: python try_many_variants.py
+# test_edit_one_step.py
+# Purpose: robustly test select-then-write (unindexed) commands that you say work on your unit.
+# Usage: python test_edit_one_step.py
+
 import pyvisa, time
 
-RESOURCE = "USB0::0x0B3E::0x1012::EZ002642::INSTR"
+RESOURCE = "USB0::0x0B3E::0x1012::EZ002642::INSTR"  # change if needed
+PROGRAM_SLOT = "1"   # program slot you want to edit
+STEP_TO_TEST = 1
+TEST_VOLT = 5.0
+TEST_TIME = 0.5
+TEST_CURR = 5.0      # current limit (if you want to test CURR)
 
-PROGRAM_SLOT = "1"
-PROGRAM_TITLE = "ACC_D1_TEST"
-LOOP_COUNT = 1
-CURRENT_LIMIT_A = 5.0
-
-# Steps you want to program (must already exist on device)
-STEPS = [
-    {"step": 1, "volt": 0.0,  "time": 1.0},
-    {"step": 2, "volt": 12.0, "time": 0.1},
-    {"step": 3, "volt": 0.0,  "time": 1.0},
-    {"step": 4, "volt": 13.0, "time": 20.0},
-    {"step": 5, "volt": 0.0,  "time": 2.0},
-]
-
-# Helper functions
 def open_inst(resource, timeout_ms=5000):
     rm = pyvisa.ResourceManager()
     inst = rm.open_resource(resource)
@@ -28,195 +19,70 @@ def open_inst(resource, timeout_ms=5000):
     inst.timeout = timeout_ms
     return inst
 
-def syst_err(inst, ctx=""):
+def syserr(inst, ctx=""):
     try:
         return inst.query("SYST:ERR?").strip()
     except Exception as e:
         return f"EXC SYST:ERR? after {ctx}: {e}"
 
-def do_write(inst, cmd, small_delay=0.06):
+def write_and_report(inst, cmd):
     try:
         inst.write(cmd)
-        time.sleep(small_delay)
     except Exception as e:
-        return f"EXC writing '{cmd}': {e}"
-    return syst_err(inst, cmd)
+        print(f"EXC writing '{cmd}': {e}")
+        return
+    time.sleep(0.08)
+    print(f"WROTE '{cmd}' -> SYST:ERR? = {syserr(inst, cmd)}")
 
-def do_query(inst, cmd):
+def query_and_report(inst, cmd):
     try:
-        return inst.query(cmd).strip()
+        r = inst.query(cmd).strip()
+        print(f"QUERY '{cmd}' -> '{r}'")
     except Exception as e:
-        return f"EXC query '{cmd}': {e}"
-
-def attempt_for_step(inst, n, volt, curr, t):
-    """
-    Try many syntactic variants for writing step n:
-    - direct-indexed (e.g. PROG:EDIT:STEP:VOLT n,value)
-    - select then write variants (with/without trailing commas, zero-pad)
-    - alternate prefixes (PROG:STEP:..., EDIT:STEP:..., STEP:...)
-    Return True if any approach appears to have succeeded, else False.
-    """
-    tried = []
-
-    # Candidate direct-index writes (variations)
-    direct_variants = [
-        f"PROG:EDIT:STEP:VOLT {n},{float(volt)}",
-        f"PROG:EDIT:STEP:CURR {n},{float(curr)}",
-        f"PROG:EDIT:STEP:TIME {n},{float(t)}",
-        f"PROG:STEP:VOLT {n},{float(volt)}",
-        f"PROG:STEP:CURR {n},{float(curr)}",
-        f"PROG:STEP:TIME {n},{float(t)}",
-    ]
-
-    # Candidate select variants (many small syntactic differences)
-    sel_variants = [
-        f"PROG:EDIT:STEP:SEL {n}",
-        f"PROG:EDIT:STEP:SEL {n},",
-        f"PROG:EDIT:STEP:SEL {n},0",
-        f"PROG:STEP:SEL {n}",
-        f"PROG:STEP:SEL {n},",
-        f"STEP:SEL {n}",
-        f"PROG:EDIT:STEP:SEL {n:04d}",   # zero-padded
-    ]
-
-    # Field write variants without index (which rely on selection)
-    field_variants = [
-        f"PROG:EDIT:STEP:VOLT {float(volt)}",
-        f"PROG:EDIT:STEP:VOLT {float(volt)},",
-        f"PROG:EDIT:STEP:VOLT {float(volt)};",
-        f"PROG:STEP:VOLT {float(volt)}",
-        f"PROG:EDIT:STEP:CURR {float(curr)}",
-        f"PROG:EDIT:STEP:TIME {float(t)}",
-    ]
-
-    # 1) Try direct-indexed writes (grouped by field so device can reject per-field)
-    print(f">>> Trying direct-indexed forms for step {n}")
-    for c in direct_variants:
-        resp = do_write(inst, c)
-        print(f"WROTE '{c}' -> {resp}")
-        tried.append((c, resp))
-        # small pause between tries
-        time.sleep(0.08)
-
-    # After trying direct forms, attempt several readback queries for the step
-    read_queries = [
-        f"PROG:EDIT:STEP:VOLT? {n}",
-        f"PROG:STEP:VOLT? {n}",
-        f"PROG:EDIT:STEP:DC? {n}",
-        f"PROG:STEP:DC? {n}",
-    ]
-    for q in read_queries:
-        r = do_query(inst, q)
-        print(f"QUERY '{q}' -> {r}")
-        tried.append((q, r))
-        time.sleep(0.05)
-        # If we got a numeric reply (not EXC) assume success
-        if not str(r).startswith("EXC") and r != "":
-            return True, tried
-
-    # 2) Try select variants then field writes
-    print(f">>> Trying select-then-write variants for step {n}")
-    for sel in sel_variants:
-        sresp = do_write(inst, sel)
-        print(f"WROTE '{sel}' -> {sresp}")
-        tried.append((sel, sresp))
-        # If selection gave "No error" proceed to field writes; else still try writes since some firmware reports oddly
-        # Now write field commands (attempt several syntaxes)
-        for fv in field_variants:
-            fret = do_write(inst, fv)
-            print(f"WROTE '{fv}' -> {fret}")
-            tried.append((fv, fret))
-            time.sleep(0.06)
-
-        # Try readback queries again
-        for q in read_queries:
-            r = do_query(inst, q)
-            print(f"QUERY '{q}' -> {r}")
-            tried.append((q, r))
-            if not str(r).startswith("EXC") and r != "":
-                return True, tried
-        time.sleep(0.12)
-
-    # 3) Try brutal variants: write step fields using slightly different names
-    print(f">>> Trying alternate field names for step {n}")
-    alt_field_cmds = [
-        f"PROG:EDIT:STEP:AMP {n},{float(curr)}",
-        f"PROG:EDIT:STEP:I {n},{float(curr)}",
-        f"PROG:EDIT:STEP:V {n},{float(volt)}",
-        f"PROG:EDIT:STEP:TIME {n},{float(t)}",
-    ]
-    for c in alt_field_cmds:
-        r = do_write(inst, c)
-        print(f"WROTE '{c}' -> {r}")
-        tried.append((c, r))
-        time.sleep(0.06)
-
-    # final readback attempt
-    for q in read_queries + [f"PROG:EDIT:COUN?", ":PROG:EDIT:COUNT?", ":PROG:EDIT:COUNT?"]:
-        r = do_query(inst, q)
-        print(f"QUERY '{q}' -> {r}")
-        tried.append((q, r))
-    return False, tried
+        print(f"EXC querying '{cmd}': {e}")
 
 def main():
     inst = open_inst(RESOURCE)
     try:
-        print("IDN:", do_query(inst, "*IDN?"))
-        inst.write("*CLS"); inst.write("ABORT"); inst.write("SYST:REM")
-        time.sleep(0.08)
+        print("IDN:", end=" ")
+        query_and_report(inst, "*IDN?")
+        # basic preparation
+        for c in ("*CLS", "ABORT", "SYST:REM"):
+            inst.write(c)
+            time.sleep(0.02)
+        # select program slot
         inst.write(f':PROG:NAME "{PROGRAM_SLOT}"')
-        time.sleep(0.06)
-        inst.write(f':PROG:EDIT:TITL "{PROGRAM_TITLE}"')
-        inst.write(f":PROG:EDIT:LOOP {int(LOOP_COUNT)}")
-        time.sleep(0.06)
-        print("Header set. SYST:ERR? ->", syst_err(inst, "header"))
+        time.sleep(0.05)
+        print("After selecting program slot:", syserr(inst, "select program"))
 
-        # read existing step count (try a few reliable queries)
-        step_count = None
-        for q in (":PROG:EDIT:COUN?", ":PROG:EDIT:COUNT?", ":PROG:EDIT:STEP:COUN?", ":PROG:EDIT:STEP:COUNT?"):
-            try:
-                r = inst.query(q).strip()
-                if r:
-                    try:
-                        step_count = int(r.split(",")[0])
-                        break
-                    except Exception:
-                        pass
-            except Exception:
-                pass
-        print("Device reports existing step count =", step_count)
-        if step_count is None:
-            print("Could not determine step count. Create placeholders manually via front panel and retry.")
-            return
+        # Now try select the step (this is the form you said works)
+        sel_cmd = f"PROG:EDIT:STEP:SEL {STEP_TO_TEST}"
+        write_and_report(inst, sel_cmd)
 
-        # Check that the device has at least as many steps as we want to program
-        if len(STEPS) > step_count:
-            print(f"Device has {step_count} steps but you requested {len(STEPS)}. Create placeholders or reduce STEPS.")
-            return
+        # Now write VOLT (unindexed) — the form you observed working
+        volt_cmd = f"PROG:EDIT:STEP:VOLT {TEST_VOLT}"
+        write_and_report(inst, volt_cmd)
 
-        # Attempt programming each step
-        for s in sorted(STEPS, key=lambda x: x["step"]):
-            n = int(s["step"])
-            print("\n" + "="*40)
-            print(f"Attempting step {n} => V={s['volt']} T={s['time']} I={CURRENT_LIMIT_A}")
-            ok, trace = attempt_for_step(inst, n, s['volt'], CURRENT_LIMIT_A, s['time'])
-            if ok:
-                print(f"SUCCESS programming step {n} (one of the variants worked).")
-            else:
-                print(f"FAILED programming step {n}. Trace below:")
-                for item in trace:
-                    print(item)
-                print("Stopping further attempts. Please paste the above trace into the chat.")
-                return
+        # Write CURR (if supported)
+        curr_cmd = f"PROG:EDIT:STEP:CURR {TEST_CURR}"
+        write_and_report(inst, curr_cmd)
 
-        # Save & optionally run
-        print("All steps written (or verified). Saving...")
-        print("SAVE SYST:ERR? ->", do_write(inst, ":PROG:SAVE"))
-        print("Start ->", do_write(inst, "OUTP 1"), do_write(inst, ":PROG:EXEC:STAT RUN"))
+        # Write TIME (unindexed)
+        time_cmd = f"PROG:EDIT:STEP:TIME {TEST_TIME}"
+        write_and_report(inst, time_cmd)
+
+        # Try a couple of readbacks (may timeout on your FW; still try)
+        for q in (f"PROG:EDIT:STEP:VOLT? {STEP_TO_TEST}", f"PROG:STEP:VOLT? {STEP_TO_TEST}", "PROG:EDIT:COUN?"):
+            query_and_report(inst, q)
+
+        # Save (harmless)
+        write_and_report(inst, ":PROG:SAVE")
+
     finally:
-        try: inst.close()
-        except: pass
-        print("Connection closed.")
+        try:
+            inst.close()
+        except:
+            pass
 
 if __name__ == "__main__":
     main()
