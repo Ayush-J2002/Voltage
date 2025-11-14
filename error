@@ -2,28 +2,207 @@ IDN: KIKUSUI,PBZ20-20,EZ002642,2.25
 Header set. SYST:ERR? -> 0,"No error"
 Device reports existing step count = 5
 
---- Writing step 1 ---
-WROTE 'PROG:EDIT:STEP:VOLT 1,0.0' -> SYST:ERR? = -220,"Parameter error"
-WROTE 'PROG:EDIT:STEP:CURR 1,5.0' -> SYST:ERR? = -220,"Parameter error"
-WROTE 'PROG:EDIT:STEP:TIME 1,1.0' -> SYST:ERR? = -108,"Parameter not allowed"
-QUERY 'PROG:EDIT:STEP:VOLT? 1' -> EXC querying 'PROG:EDIT:STEP:VOLT? 1': VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
-QUERY 'PROG:STEP:VOLT? 1' -> EXC querying 'PROG:STEP:VOLT? 1': VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
-QUERY 'PROG:EDIT:STEP:DC? 1' -> EXC querying 'PROG:EDIT:STEP:DC? 1': VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
-QUERY 'PROG:STEP:DC? 1' -> EXC querying 'PROG:STEP:DC? 1': VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
-SEL 1 -> SYST:ERR? = -220,"Parameter error"
-WROTE 'PROG:EDIT:STEP:VOLT 0.0' -> SYST:ERR? = -420,"Query UNTERMINATED"
-WROTE 'PROG:EDIT:STEP:CURR 5.0' -> SYST:ERR? = -100,"Command error"
-WROTE 'PROG:EDIT:STEP:TIME 1.0' -> SYST:ERR? = -420,"Query UNTERMINATED"
-QUERY 'PROG:EDIT:STEP:VOLT? 1' -> EXC querying 'PROG:EDIT:STEP:VOLT? 1': VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
-QUERY 'PROG:STEP:VOLT? 1' -> EXC querying 'PROG:STEP:VOLT? 1': VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
-QUERY 'PROG:EDIT:STEP:DC? 1' -> EXC querying 'PROG:EDIT:STEP:DC? 1': VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
-QUERY 'PROG:STEP:DC? 1' -> EXC querying 'PROG:STEP:DC? 1': VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
-Both direct and select methods failed for step 1
-Latest SYST:ERR? -> -100,"Command error"
+========================================
+Attempting step 1 => V=0.0 T=1.0 I=5.0
+>>> Trying direct-indexed forms for step 1
+WROTE 'PROG:EDIT:STEP:VOLT 1,0.0' -> -220,"Parameter error"
+WROTE 'PROG:EDIT:STEP:CURR 1,5.0' -> -220,"Parameter error"
+WROTE 'PROG:EDIT:STEP:TIME 1,1.0' -> -108,"Parameter not allowed"
+WROTE 'PROG:STEP:VOLT 1,0.0' -> -100,"Command error"
+WROTE 'PROG:STEP:CURR 1,5.0' -> -100,"Command error"
+WROTE 'PROG:STEP:TIME 1,1.0' -> -100,"Command error"
+QUERY 'PROG:EDIT:STEP:VOLT? 1' -> EXC query 'PROG:EDIT:STEP:VOLT? 1': VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
+QUERY 'PROG:STEP:VOLT? 1' -> EXC query 'PROG:STEP:VOLT? 1': VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
+QUERY 'PROG:EDIT:STEP:DC? 1' -> EXC query 'PROG:EDIT:STEP:DC? 1': VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
+QUERY 'PROG:STEP:DC? 1' -> EXC query 'PROG:STEP:DC? 1': VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
+>>> Trying select-then-write variants for step 1
+WROTE 'PROG:EDIT:STEP:SEL 1' -> -220,"Parameter error"
+WROTE 'PROG:EDIT:STEP:VOLT 0.0' -> -420,"Query UNTERMINATED"
+WROTE 'PROG:EDIT:STEP:VOLT 0.0,' -> -100,"Command error"
+WROTE 'PROG:EDIT:STEP:VOLT 0.0;' -> -420,"Query UNTERMINATED"
+WROTE 'PROG:STEP:VOLT 0.0' -> -100,"Command error"
+WROTE 'PROG:EDIT:STEP:CURR 5.0' -> -420,"Query UNTERMINATED"
+WROTE 'PROG:EDIT:STEP:TIME 1.0' -> -100,"Command error"
+QUERY 'PROG:EDIT:STEP:VOLT? 1' -> EXC query 'PROG:EDIT:STEP:VOLT? 1': VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
+QUERY 'PROG:STEP:VOLT? 1' -> EXC query 'PROG:STEP:VOLT? 1': VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
+QUERY 'PROG:EDIT:STEP:DC? 1' -> EXC query 'PROG:EDIT:STEP:DC? 1': VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
+QUERY 'PROG:STEP:DC? 1' -> EXC query 'PROG:STEP:DC? 1': VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
+WROTE 'PROG:EDIT:STEP:SEL 1,' -> -420,"Query UNTERMINATED"
+WROTE 'PROG:EDIT:STEP:VOLT 0.0' -> -220,"Parameter error"
+WROTE 'PROG:EDIT:STEP:VOLT 0.0,' -> -100,"Command error"
+WROTE 'PROG:EDIT:STEP:VOLT 0.0;' -> -221,"Settings conflict"
+WROTE 'PROG:STEP:VOLT 0.0' -> -220,"Parameter error"
+WROTE 'PROG:EDIT:STEP:CURR 5.0' -> -420,"Query UNTERMINATED"
+WROTE 'PROG:EDIT:STEP:TIME 1.0' -> -100,"Command error"
+QUERY 'PROG:EDIT:STEP:VOLT? 1' -> EXC query 'PROG:EDIT:STEP:VOLT? 1': VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
+QUERY 'PROG:STEP:VOLT? 1' -> EXC query 'PROG:STEP:VOLT? 1': VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
+QUERY 'PROG:EDIT:STEP:DC? 1' -> EXC query 'PROG:EDIT:STEP:DC? 1': VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
+QUERY 'PROG:STEP:DC? 1' -> EXC query 'PROG:STEP:DC? 1': VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
+WROTE 'PROG:EDIT:STEP:SEL 1,0' -> -420,"Query UNTERMINATED"
+WROTE 'PROG:EDIT:STEP:VOLT 0.0' -> -100,"Command error"
+WROTE 'PROG:EDIT:STEP:VOLT 0.0,' -> -420,"Query UNTERMINATED"
+WROTE 'PROG:EDIT:STEP:VOLT 0.0;' -> -100,"Command error"
+WROTE 'PROG:STEP:VOLT 0.0' -> -420,"Query UNTERMINATED"
+WROTE 'PROG:EDIT:STEP:CURR 5.0' -> -108,"Parameter not allowed"
+WROTE 'PROG:EDIT:STEP:TIME 1.0' -> -220,"Parameter error"
+QUERY 'PROG:EDIT:STEP:VOLT? 1' -> EXC query 'PROG:EDIT:STEP:VOLT? 1': VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
+QUERY 'PROG:STEP:VOLT? 1' -> EXC query 'PROG:STEP:VOLT? 1': VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
+QUERY 'PROG:EDIT:STEP:DC? 1' -> EXC query 'PROG:EDIT:STEP:DC? 1': VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
+QUERY 'PROG:STEP:DC? 1' -> EXC query 'PROG:STEP:DC? 1': VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
+WROTE 'PROG:STEP:SEL 1' -> -100,"Command error"
+WROTE 'PROG:EDIT:STEP:VOLT 0.0' -> -221,"Settings conflict"
+WROTE 'PROG:EDIT:STEP:VOLT 0.0,' -> -220,"Parameter error"
+WROTE 'PROG:EDIT:STEP:VOLT 0.0;' -> -420,"Query UNTERMINATED"
+WROTE 'PROG:STEP:VOLT 0.0' -> -100,"Command error"
+WROTE 'PROG:EDIT:STEP:CURR 5.0' -> -420,"Query UNTERMINATED"
+WROTE 'PROG:EDIT:STEP:TIME 1.0' -> -100,"Command error"
+QUERY 'PROG:EDIT:STEP:VOLT? 1' -> EXC query 'PROG:EDIT:STEP:VOLT? 1': VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
+QUERY 'PROG:STEP:VOLT? 1' -> EXC query 'PROG:STEP:VOLT? 1': VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
+QUERY 'PROG:EDIT:STEP:DC? 1' -> EXC query 'PROG:EDIT:STEP:DC? 1': VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
+QUERY 'PROG:STEP:DC? 1' -> EXC query 'PROG:STEP:DC? 1': VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
+WROTE 'PROG:STEP:SEL 1,' -> -420,"Query UNTERMINATED"
+WROTE 'PROG:EDIT:STEP:VOLT 0.0' -> -100,"Command error"
+WROTE 'PROG:EDIT:STEP:VOLT 0.0,' -> -420,"Query UNTERMINATED"
+WROTE 'PROG:EDIT:STEP:VOLT 0.0;' -> -108,"Parameter not allowed"
+WROTE 'PROG:STEP:VOLT 0.0' -> -220,"Parameter error"
+WROTE 'PROG:EDIT:STEP:CURR 5.0' -> -100,"Command error"
+WROTE 'PROG:EDIT:STEP:TIME 1.0' -> -221,"Settings conflict"
+QUERY 'PROG:EDIT:STEP:VOLT? 1' -> EXC query 'PROG:EDIT:STEP:VOLT? 1': VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
+QUERY 'PROG:STEP:VOLT? 1' -> EXC query 'PROG:STEP:VOLT? 1': VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
+QUERY 'PROG:EDIT:STEP:DC? 1' -> EXC query 'PROG:EDIT:STEP:DC? 1': VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
+QUERY 'PROG:STEP:DC? 1' -> EXC query 'PROG:STEP:DC? 1': VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
+WROTE 'STEP:SEL 1' -> -220,"Parameter error"
+WROTE 'PROG:EDIT:STEP:VOLT 0.0' -> -420,"Query UNTERMINATED"
+WROTE 'PROG:EDIT:STEP:VOLT 0.0,' -> -100,"Command error"
+WROTE 'PROG:EDIT:STEP:VOLT 0.0;' -> -420,"Query UNTERMINATED"
+WROTE 'PROG:STEP:VOLT 0.0' -> -100,"Command error"
+WROTE 'PROG:EDIT:STEP:CURR 5.0' -> -420,"Query UNTERMINATED"
+WROTE 'PROG:EDIT:STEP:TIME 1.0' -> -100,"Command error"
+QUERY 'PROG:EDIT:STEP:VOLT? 1' -> EXC query 'PROG:EDIT:STEP:VOLT? 1': VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
+QUERY 'PROG:STEP:VOLT? 1' -> EXC query 'PROG:STEP:VOLT? 1': VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
+QUERY 'PROG:EDIT:STEP:DC? 1' -> EXC query 'PROG:EDIT:STEP:DC? 1': VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
+QUERY 'PROG:STEP:DC? 1' -> EXC query 'PROG:STEP:DC? 1': VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
+WROTE 'PROG:EDIT:STEP:SEL 0001' -> -420,"Query UNTERMINATED"
+WROTE 'PROG:EDIT:STEP:VOLT 0.0' -> -100,"Command error"
+WROTE 'PROG:EDIT:STEP:VOLT 0.0,' -> -220,"Parameter error"
+WROTE 'PROG:EDIT:STEP:VOLT 0.0;' -> -100,"Command error"
+WROTE 'PROG:STEP:VOLT 0.0' -> -221,"Settings conflict"
+WROTE 'PROG:EDIT:STEP:CURR 5.0' -> -220,"Parameter error"
+WROTE 'PROG:EDIT:STEP:TIME 1.0' -> -420,"Query UNTERMINATED"
+QUERY 'PROG:EDIT:STEP:VOLT? 1' -> EXC query 'PROG:EDIT:STEP:VOLT? 1': VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
+QUERY 'PROG:STEP:VOLT? 1' -> EXC query 'PROG:STEP:VOLT? 1': VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
+QUERY 'PROG:EDIT:STEP:DC? 1' -> EXC query 'PROG:EDIT:STEP:DC? 1': VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
+QUERY 'PROG:STEP:DC? 1' -> EXC query 'PROG:STEP:DC? 1': VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
+>>> Trying alternate field names for step 1
+WROTE 'PROG:EDIT:STEP:AMP 1,5.0' -> -100,"Command error"
+WROTE 'PROG:EDIT:STEP:I 1,5.0' -> -420,"Query UNTERMINATED"
+WROTE 'PROG:EDIT:STEP:V 1,0.0' -> -100,"Command error"
+WROTE 'PROG:EDIT:STEP:TIME 1,1.0' -> -420,"Query UNTERMINATED"
+QUERY 'PROG:EDIT:STEP:VOLT? 1' -> EXC query 'PROG:EDIT:STEP:VOLT? 1': VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
+QUERY 'PROG:STEP:VOLT? 1' -> EXC query 'PROG:STEP:VOLT? 1': VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
+QUERY 'PROG:EDIT:STEP:DC? 1' -> EXC query 'PROG:EDIT:STEP:DC? 1': VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
+QUERY 'PROG:STEP:DC? 1' -> EXC query 'PROG:STEP:DC? 1': VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
+QUERY 'PROG:EDIT:COUN?' -> 5
+QUERY ':PROG:EDIT:COUNT?' -> 5
+QUERY ':PROG:EDIT:COUNT?' -> 5
+FAILED programming step 1. Trace below:
+('PROG:EDIT:STEP:VOLT 1,0.0', '-220,"Parameter error"')
+('PROG:EDIT:STEP:CURR 1,5.0', '-220,"Parameter error"')
+('PROG:EDIT:STEP:TIME 1,1.0', '-108,"Parameter not allowed"')
+('PROG:STEP:VOLT 1,0.0', '-100,"Command error"')
+('PROG:STEP:CURR 1,5.0', '-100,"Command error"')
+('PROG:STEP:TIME 1,1.0', '-100,"Command error"')
+('PROG:EDIT:STEP:VOLT? 1', "EXC query 'PROG:EDIT:STEP:VOLT? 1': VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.")
+('PROG:STEP:VOLT? 1', "EXC query 'PROG:STEP:VOLT? 1': VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.")
+('PROG:EDIT:STEP:DC? 1', "EXC query 'PROG:EDIT:STEP:DC? 1': VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.")
+('PROG:STEP:DC? 1', "EXC query 'PROG:STEP:DC? 1': VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.")
+('PROG:EDIT:STEP:SEL 1', '-220,"Parameter error"')
+('PROG:EDIT:STEP:VOLT 0.0', '-420,"Query UNTERMINATED"')
+('PROG:EDIT:STEP:VOLT 0.0,', '-100,"Command error"')
+('PROG:EDIT:STEP:VOLT 0.0;', '-420,"Query UNTERMINATED"')
+('PROG:STEP:VOLT 0.0', '-100,"Command error"')
+('PROG:EDIT:STEP:CURR 5.0', '-420,"Query UNTERMINATED"')
+('PROG:EDIT:STEP:TIME 1.0', '-100,"Command error"')
+('PROG:EDIT:STEP:VOLT? 1', "EXC query 'PROG:EDIT:STEP:VOLT? 1': VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.")
+('PROG:STEP:VOLT? 1', "EXC query 'PROG:STEP:VOLT? 1': VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.")
+('PROG:EDIT:STEP:DC? 1', "EXC query 'PROG:EDIT:STEP:DC? 1': VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.")
+('PROG:STEP:DC? 1', "EXC query 'PROG:STEP:DC? 1': VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.")
+('PROG:EDIT:STEP:SEL 1,', '-420,"Query UNTERMINATED"')
+('PROG:EDIT:STEP:VOLT 0.0', '-220,"Parameter error"')
+('PROG:EDIT:STEP:VOLT 0.0,', '-100,"Command error"')
+('PROG:EDIT:STEP:VOLT 0.0;', '-221,"Settings conflict"')
+('PROG:STEP:VOLT 0.0', '-220,"Parameter error"')
+('PROG:EDIT:STEP:CURR 5.0', '-420,"Query UNTERMINATED"')
+('PROG:EDIT:STEP:TIME 1.0', '-100,"Command error"')
+('PROG:EDIT:STEP:VOLT? 1', "EXC query 'PROG:EDIT:STEP:VOLT? 1': VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.")
+('PROG:STEP:VOLT? 1', "EXC query 'PROG:STEP:VOLT? 1': VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.")
+('PROG:EDIT:STEP:DC? 1', "EXC query 'PROG:EDIT:STEP:DC? 1': VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.")
+('PROG:STEP:DC? 1', "EXC query 'PROG:STEP:DC? 1': VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.")
+('PROG:EDIT:STEP:SEL 1,0', '-420,"Query UNTERMINATED"')
+('PROG:EDIT:STEP:VOLT 0.0', '-100,"Command error"')
+('PROG:EDIT:STEP:VOLT 0.0,', '-420,"Query UNTERMINATED"')
+('PROG:EDIT:STEP:VOLT 0.0;', '-100,"Command error"')
+('PROG:STEP:VOLT 0.0', '-420,"Query UNTERMINATED"')
+('PROG:EDIT:STEP:CURR 5.0', '-108,"Parameter not allowed"')
+('PROG:EDIT:STEP:TIME 1.0', '-220,"Parameter error"')
+('PROG:EDIT:STEP:VOLT? 1', "EXC query 'PROG:EDIT:STEP:VOLT? 1': VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.")
+('PROG:STEP:VOLT? 1', "EXC query 'PROG:STEP:VOLT? 1': VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.")
+('PROG:EDIT:STEP:DC? 1', "EXC query 'PROG:EDIT:STEP:DC? 1': VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.")
+('PROG:STEP:DC? 1', "EXC query 'PROG:STEP:DC? 1': VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.")
+('PROG:STEP:SEL 1', '-100,"Command error"')
+('PROG:EDIT:STEP:VOLT 0.0', '-221,"Settings conflict"')
+('PROG:EDIT:STEP:VOLT 0.0,', '-220,"Parameter error"')
+('PROG:EDIT:STEP:VOLT 0.0;', '-420,"Query UNTERMINATED"')
+('PROG:STEP:VOLT 0.0', '-100,"Command error"')
+('PROG:EDIT:STEP:CURR 5.0', '-420,"Query UNTERMINATED"')
+('PROG:EDIT:STEP:TIME 1.0', '-100,"Command error"')
+('PROG:EDIT:STEP:VOLT? 1', "EXC query 'PROG:EDIT:STEP:VOLT? 1': VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.")
+('PROG:STEP:VOLT? 1', "EXC query 'PROG:STEP:VOLT? 1': VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.")
+('PROG:EDIT:STEP:DC? 1', "EXC query 'PROG:EDIT:STEP:DC? 1': VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.")
+('PROG:STEP:DC? 1', "EXC query 'PROG:STEP:DC? 1': VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.")
+('PROG:STEP:SEL 1,', '-420,"Query UNTERMINATED"')
+('PROG:EDIT:STEP:VOLT 0.0', '-100,"Command error"')
+('PROG:EDIT:STEP:VOLT 0.0,', '-420,"Query UNTERMINATED"')
+('PROG:EDIT:STEP:VOLT 0.0;', '-108,"Parameter not allowed"')
+('PROG:STEP:VOLT 0.0', '-220,"Parameter error"')
+('PROG:EDIT:STEP:CURR 5.0', '-100,"Command error"')
+('PROG:EDIT:STEP:TIME 1.0', '-221,"Settings conflict"')
+('PROG:EDIT:STEP:VOLT? 1', "EXC query 'PROG:EDIT:STEP:VOLT? 1': VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.")
+('PROG:STEP:VOLT? 1', "EXC query 'PROG:STEP:VOLT? 1': VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.")
+('PROG:EDIT:STEP:DC? 1', "EXC query 'PROG:EDIT:STEP:DC? 1': VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.")
+('PROG:STEP:DC? 1', "EXC query 'PROG:STEP:DC? 1': VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.")
+('STEP:SEL 1', '-220,"Parameter error"')
+('PROG:EDIT:STEP:VOLT 0.0', '-420,"Query UNTERMINATED"')
+('PROG:EDIT:STEP:VOLT 0.0,', '-100,"Command error"')
+('PROG:EDIT:STEP:VOLT 0.0;', '-420,"Query UNTERMINATED"')
+('PROG:STEP:VOLT 0.0', '-100,"Command error"')
+('PROG:EDIT:STEP:CURR 5.0', '-420,"Query UNTERMINATED"')
+('PROG:EDIT:STEP:TIME 1.0', '-100,"Command error"')
+('PROG:EDIT:STEP:VOLT? 1', "EXC query 'PROG:EDIT:STEP:VOLT? 1': VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.")
+('PROG:STEP:VOLT? 1', "EXC query 'PROG:STEP:VOLT? 1': VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.")
+('PROG:EDIT:STEP:DC? 1', "EXC query 'PROG:EDIT:STEP:DC? 1': VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.")
+('PROG:STEP:DC? 1', "EXC query 'PROG:STEP:DC? 1': VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.")
+('PROG:EDIT:STEP:SEL 0001', '-420,"Query UNTERMINATED"')
+('PROG:EDIT:STEP:VOLT 0.0', '-100,"Command error"')
+('PROG:EDIT:STEP:VOLT 0.0,', '-220,"Parameter error"')
+('PROG:EDIT:STEP:VOLT 0.0;', '-100,"Command error"')
+('PROG:STEP:VOLT 0.0', '-221,"Settings conflict"')
+('PROG:EDIT:STEP:CURR 5.0', '-220,"Parameter error"')
+('PROG:EDIT:STEP:TIME 1.0', '-420,"Query UNTERMINATED"')
+('PROG:EDIT:STEP:VOLT? 1', "EXC query 'PROG:EDIT:STEP:VOLT? 1': VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.")
+('PROG:STEP:VOLT? 1', "EXC query 'PROG:STEP:VOLT? 1': VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.")
+('PROG:EDIT:STEP:DC? 1', "EXC query 'PROG:EDIT:STEP:DC? 1': VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.")
+('PROG:STEP:DC? 1', "EXC query 'PROG:STEP:DC? 1': VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.")
+('PROG:EDIT:STEP:AMP 1,5.0', '-100,"Command error"')
+('PROG:EDIT:STEP:I 1,5.0', '-420,"Query UNTERMINATED"')
+('PROG:EDIT:STEP:V 1,0.0', '-100,"Command error"')
+('PROG:EDIT:STEP:TIME 1,1.0', '-420,"Query UNTERMINATED"')
+('PROG:EDIT:STEP:VOLT? 1', "EXC query 'PROG:EDIT:STEP:VOLT? 1': VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.")
+('PROG:STEP:VOLT? 1', "EXC query 'PROG:STEP:VOLT? 1': VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.")
+('PROG:EDIT:STEP:DC? 1', "EXC query 'PROG:EDIT:STEP:DC? 1': VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.")
+('PROG:STEP:DC? 1', "EXC query 'PROG:STEP:DC? 1': VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.")
+('PROG:EDIT:COUN?', '5')
+(':PROG:EDIT:COUNT?', '5')
+(':PROG:EDIT:COUNT?', '5')
+Stopping further attempts. Please paste the above trace into the chat.
 Connection closed.
-Traceback (most recent call last):
-  File "d:\OneDrive - KPIT Technologies Ltd\Desktop\Python\PG.py", line 180, in <module>
-    main()
-  File "d:\OneDrive - KPIT Technologies Ltd\Desktop\Python\PG.py", line 161, in main
-    raise RuntimeError(f"Failed to program step {n}. See instrument replies above.")
-RuntimeError: Failed to program step 1. See instrument replies above.
