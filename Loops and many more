@@ -4,7 +4,7 @@ import time
 # --- (1) --- EDIT YOUR TEST HERE --- (1) ---
 
 # UPDATE WITH YOUR ADDRESS
-TARGET_RESOURCE = "USB0::0x0B3E::0x0120::EZ002642::INSTR" 
+TARGET_RESOURCE = "USB0::0x0B3E::0x1012::EZ002642::INSTR" 
 
 # CHOOSE PROGRAM SLOT (Your device expects "1", "2", etc.)
 PROGRAM_SLOT = "1"
@@ -17,8 +17,9 @@ LOOP_COUNT = 1
 CURRENT_LIMIT = 5.0
 
 # DEFINE YOUR STEPS (Using ACC Pattern D1 from your image)
-# (Step, Voltage, Time in Seconds)
-ACC_PATTERN_D1 = [
+# (Step Number, Voltage, Time in Seconds)
+# You can replace this with any pattern you want.
+PATTERN_TO_UPLOAD = [
     {'step': 1, 'volt': 0.0, 'time': 1.0},    # Start OFF for 1s
     {'step': 2, 'volt': 12.0, 'time': 0.1},   # 12V for 100ms
     {'step': 3, 'volt': 0.0, 'time': 1.0},    # OFF for 1s (during sweep)
@@ -47,7 +48,7 @@ def upload_and_run_sequence(inst, slot, title, loops, current, steps_list):
         time.sleep(0.2) # Short pause for device to process
 
         # --- 3. CONFIGURE HEADER (Title & Loop) ---
-        # This uses your working commands
+        # These commands are working for you
         print(f"3. Setting Title to '{title}' and Loops to {loops}...")
         inst.write(f':PROG:EDIT:TITL "{title}"')
         inst.write(f':PROG:EDIT:LOOP {loops}')
@@ -60,9 +61,13 @@ def upload_and_run_sequence(inst, slot, title, loops, current, steps_list):
         # --- 5. UPLOAD STEPS ---
         print("5. Uploading steps...")
         for s in steps_list:
-            # Syntax: :PROG:EDIT <Step>, <Volts>, <Amps>, <Time>, <TrigOut>, <Status>
-            # TrigOut=0 (Off), Status=1 (Output ON during this step)
-            cmd = f":PROG:EDIT {s['step']}, {s['volt']}, {current}, {s['time']}, 0, 1"
+            
+            # --- THIS IS THE FIX ---
+            # The correct command for a DC step on a PBZ is "PROG:STEP:DC"
+            # Old (Wrong) Command: :PROG:EDIT ...
+            # New (Correct) Command:
+            cmd = f":PROG:STEP:DC {s['step']}, {s['volt']}, {current}, {s['time']}"
+            
             print(f"   Writing Step {s['step']}: {s['volt']}V for {s['time']}s")
             inst.write(cmd)
             
@@ -116,7 +121,7 @@ if __name__ == "__main__":
             title=PROGRAM_TITLE,
             loops=LOOP_COUNT,
             current=CURRENT_LIMIT,
-            steps_list=ACC_PATTERN_D1
+            steps_list=PATTERN_TO_UPLOAD
         )
 
     except Exception as e:
