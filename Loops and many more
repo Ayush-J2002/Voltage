@@ -1,74 +1,143 @@
 import pyvisa
 import time
 
-RESOURCE = "USB0::0x0B3E::0x1012::EZ002642::INSTR"
+# --- (1) --- EDIT YOUR TEST HERE --- (1) ---
+
+# UPDATE WITH YOUR ADDRESS
+TARGET_RESOURCE = "USB0::0x0B3E::0x1012::EZ002642::INSTR" 
+
+# CHOOSE PROGRAM SLOT (Your device expects "1", "2", etc.)
 PROGRAM_SLOT = "1"
 
-# Put your step definitions here
-STEPS = [
-    {"step": 1, "volt": 0.0,  "time": 1.0},
-    {"step": 2, "volt": 12.0, "time": 0.1},
-    {"step": 3, "volt": 0.0,  "time": 1.0},
-    {"step": 4, "volt": 13.0, "time": 20.0},
-    {"step": 5, "volt": 0.0,  "time": 2.0},
+# CHOOSE TITLE AND LOOP COUNT
+PROGRAM_TITLE = "ACC_D1_TEST"
+LOOP_COUNT = 1
+
+# CHOOSE CURRENT LIMIT (Your OCP is 6A, so 5.0 is safe)
+CURRENT_LIMIT = 5.0
+
+# DEFINE YOUR STEPS (Using ACC Pattern D1 from your image)
+# (Step Number, Voltage, Time in Seconds)
+PATTERN_TO_UPLOAD = [
+    {'step': 1, 'volt': 0.0, 'time': 1.0},    # Start OFF for 1s
+    {'step': 2, 'volt': 12.0, 'time': 0.1},   # 12V for 100ms
+    {'step': 3, 'volt': 0.0, 'time': 1.0},    # OFF for 1s (during sweep)
+    {'step': 4, 'volt': 13.0, 'time': 20.0},  # 13V for 20s
+    {'step': 5, 'volt': 0.0, 'time': 2.0}     # OFF for 2s
 ]
+# --- (End of Edit Section) ---
 
-def open_inst(resource):
-    rm = pyvisa.ResourceManager()
-    inst = rm.open_resource(resource)
-    inst.read_termination = "\n"
-    inst.write_termination = "\n"
-    inst.timeout = 5000
-    return inst
 
-def syserr(inst):
+def upload_and_run_sequence(inst, slot, title, loops, current, steps_list):
+    """
+    This function correctly uploads a full sequence to the PBZ's
+    internal memory and then runs it.
+    
+    IT IS BASED ON THE PBZ INTERFACE MANUAL (Pages 55-63)
+    """
     try:
-        return inst.query("SYST:ERR?").strip()
-    except:
-        return "ERR?"
+        # --- 1. RESET AND SETUP ---
+        print("1. Resetting device and clearing errors...")
+        inst.write('*CLS')   # Clear errors
+        inst.write('ABORT') # Stop any running sequence
+        inst.write('SYST:REM') # Force Remote Mode
+        time.sleep(0.5)
 
-def write(inst, cmd):
-    inst.write(cmd)
-    time.sleep(0.1)
-    err = syserr(inst)
-    print(f"WROTE '{cmd}' -> {err}")
-    return err
+        # --- 2. SELECT PROGRAM SLOT ---
+        print(f"2. Selecting Program Slot: '{slot}'")
+        inst.write(f':PROG:NAME "{slot}"')
+        time.sleep(1.0) # Give device time to load the program
 
-def main():
-    inst = open_inst(RESOURCE)
+        # --- 3. CONFIGURE HEADER (Title & Loop) ---
+        print(f"3. Setting Title to '{title}' and Loops to {loops}...")
+        inst.write(f':PROG:EDIT:TITL "{title}"')
+        inst.write(f':PROG:EDIT:LOOP {loops}')
+        
+        # --- 4. RESIZE PROGRAM ---
+        step_count = len(steps_list)
+        print(f"4. Deleting old steps and setting new count to {step_count}...")
+        # We delete old steps first to ensure a clean program
+        inst.write(':PROG:EDIT:DELete') 
+        # Set the new total step count
+        inst.write(f':PROG:STEP:COUN {step_count}') 
+        
+        # --- 5. UPLOAD STEPS (THE CORRECT WAY) ---
+        print("5. Uploading steps (one by one)...")
+        for s in steps_list:
+            step_num = s['step']
+            print(f"   --- Writing Step {step_num} ---")
+            
+            # 1. Select the step to edit (Page 57)
+            inst.write(f':PROG:EDIT:STEP:SEL {step_num}')
+            
+            # 2. Set DC Voltage (Page 58)
+            inst.write(f":PROG:EDIT:STEP:VOLT {s['volt']}, IMMediate")
+            
+            # 3. Set DC Current (Page 58)
+            inst.write(f":PROG:EDIT:STEP:CURR {current}, IMMediate")
+            
+            # 4. Set Time (Page 63)
+            inst.write(f":PROG:EDIT:STEP:TIME {s['time']}")
+            
+            # 5. Set Output State (Page 63)
+            # (Output=ON, TrigOut=OFF, TrigIn=OFF)
+            inst.write(':PROG:EDIT:STEP:STAT ON, OFF, OFF')
 
-    print("IDN:", inst.query("*IDN?").strip())
-    inst.write("*CLS")
-    inst.write("ABORT")
-    inst.write("SYST:REM")
-    time.sleep(0.2)
+            # Check for errors
+            err = inst.query('SYST:ERR?')
+            if "No error" not in err:
+                print(f"   !!! ERROR on Step {step_num}: {err.strip()} !!!")
+                print("   Stopping script.")
+                return
 
-    # Select program slot
-    inst.write(f':PROG:NAME "{PROGRAM_SLOT}"')
-    print("After selecting program slot:", syserr(inst))
+        # --- 6. SAVE PROGRAM TO MEMORY ---
+        print("6. Saving program to device EEPROM...")
+        inst.write(':PROG:SAVE')
+        time.sleep(1.0) 
 
-    # Write each step
-    for s in STEPS:
-        n = s["step"]
-        v = s["volt"]
-        t = s["time"]
+        print("\n--- PROGRAM UPLOAD COMPLETE ---")
+        print("Check device screen: Title and Steps should be updated.")
 
-        print("\n=== Writing Step", n, "===")
+        # --- 7. RUN THE PROGRAM ---
+        print("7. Turning OUTPUT ON and RUNNING sequence...")
+        inst.write('OUTP 1')
+        time.sleep(0.5)
+        inst.write(':PROG:EXEC:STAT RUN')
+        
+        print("\n--- SEQUENCE IS RUNNING ---")
 
-        # Select step
-        write(inst, f"PROG:EDIT:STEP:SEL {n}")
+    except Exception as e:
+        print(f"CRITICAL ERROR: {e}")
+        try:
+            inst.write('OUTP 0') # Safety off
+        except:
+            pass
 
-        # Write voltage
-        write(inst, f"PROG:EDIT:STEP:VOLT {v}")
-
-        # Write time
-        write(inst, f"PROG:EDIT:STEP:TIME {t}")
-
-    # Save program
-    write(inst, ":PROG:SAVE")
-
-    inst.close()
-    print("\nDone. Steps updated successfully.")
-
+# --- Main execution ---
 if __name__ == "__main__":
-    main()
+    pbz = None
+    try:
+        rm = pyvisa.ResourceManager()
+        pbz = rm.open_resource(TARGET_RESOURCE)
+        pbz.read_termination = '\n'
+        pbz.write_termination = '\n'
+        pbz.timeout = 5000 
+        
+        print(f"Connected to: {pbz.query('*IDN?').strip()}")
+
+        upload_and_run_sequence(
+            inst=pbz,
+            slot=PROGRAM_SLOT,
+            title=PROGRAM_TITLE,
+            loops=LOOP_COUNT,
+            current=CURRENT_LIMIT,
+            steps_list=PATTERN_TO_UPLOAD
+        )
+
+    except Exception as e:
+        print(f"Failed to connect or run: {e}")
+        
+    finally:
+        if pbz:
+            pbz.close()
+            print("Connection closed.")
