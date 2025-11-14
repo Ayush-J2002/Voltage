@@ -1,184 +1,130 @@
-# probe_pbz_commands.py
-# Run this to probe which PROG:STEP / PROG:EDIT commands your PBZ accepts.
-# Usage: python probe_pbz_commands.py
-import pyvisa
-import time
+Opening resource: USB0::0x0B3E::0x1012::EZ002642::INSTR
+IDN: KIKUSUI,PBZ20-20,EZ002642,2.25
+After selecting program slot '1', SYST:ERR? -> 0,"No error"
 
-RESOURCE = "USB0::0x0B3E::0x1012::EZ002642::INSTR"   # change if needed
-TIMEOUT_MS = 5000
+======== Testing resize/counter commands (try to set 3 steps) ========
+WRITE ':PROG:STEP:COUN 3' -> write_ok=True, SYST:ERR? = -100,"Command error"
+  QUERY ':PROG:STEP:COUN?' EXC -> VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
+  QUERY ':PROG:EDIT:STEP:COUN?' EXC -> VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
+  QUERY ':PROG:STEP:COUNT?' EXC -> VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
+  QUERY ':PROG:EDIT:STEP:COUNT?' EXC -> VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
+  QUERY ':PROG:EDIT:COUN?' -> '1'
+  QUERY ':PROG:EDIT:COUNT?' -> '1'
+----------------------------------------
+WRITE ':PROG:STEP:COUNT 3' -> write_ok=True, SYST:ERR? = -100,"Command error"
+  QUERY ':PROG:STEP:COUN?' EXC -> VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
+  QUERY ':PROG:EDIT:STEP:COUN?' EXC -> VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
+  QUERY ':PROG:STEP:COUNT?' EXC -> VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
+  QUERY ':PROG:EDIT:STEP:COUNT?' EXC -> VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
+  QUERY ':PROG:EDIT:COUN?' -> '1'
+  QUERY ':PROG:EDIT:COUNT?' -> '1'
+----------------------------------------
+WRITE ':PROG:EDIT:STEP:COUN 3' -> write_ok=True, SYST:ERR? = -420,"Query UNTERMINATED"
+  QUERY ':PROG:STEP:COUN?' EXC -> VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
+  QUERY ':PROG:EDIT:STEP:COUN?' EXC -> VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
+  QUERY ':PROG:STEP:COUNT?' EXC -> VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
+  QUERY ':PROG:EDIT:STEP:COUNT?' EXC -> VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
+  QUERY ':PROG:EDIT:COUN?' -> '1'
+  QUERY ':PROG:EDIT:COUNT?' -> '1'
+----------------------------------------
+WRITE ':PROG:EDIT:STEP:COUNT 3' -> write_ok=True, SYST:ERR? = -100,"Command error"
+  QUERY ':PROG:STEP:COUN?' EXC -> VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
+  QUERY ':PROG:EDIT:STEP:COUN?' EXC -> VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
+  QUERY ':PROG:STEP:COUNT?' EXC -> VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
+  QUERY ':PROG:EDIT:STEP:COUNT?' EXC -> VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
+  QUERY ':PROG:EDIT:COUN?' -> '1'
+  QUERY ':PROG:EDIT:COUNT?' -> '1'
+----------------------------------------
+WRITE ':PROG:EDIT:COUN 3' -> write_ok=True, SYST:ERR? = -420,"Query UNTERMINATED"
+  QUERY ':PROG:STEP:COUN?' EXC -> VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
+  QUERY ':PROG:EDIT:STEP:COUN?' EXC -> VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
+  QUERY ':PROG:STEP:COUNT?' EXC -> VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
+  QUERY ':PROG:EDIT:STEP:COUNT?' EXC -> VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
+  QUERY ':PROG:EDIT:COUN?' -> '1'
+  QUERY ':PROG:EDIT:COUNT?' -> '1'
+----------------------------------------
+WRITE ':PROG:EDIT:COUNT 3' -> write_ok=True, SYST:ERR? = -100,"Command error"
+  QUERY ':PROG:STEP:COUN?' EXC -> VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
+  QUERY ':PROG:EDIT:STEP:COUN?' EXC -> VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
+  QUERY ':PROG:STEP:COUNT?' EXC -> VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
+  QUERY ':PROG:EDIT:STEP:COUNT?' EXC -> VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
+  QUERY ':PROG:EDIT:COUN?' -> '1'
+  QUERY ':PROG:EDIT:COUNT?' -> '1'
+----------------------------------------
+WRITE ':PROG:STEP:LEN 3' -> write_ok=True, SYST:ERR? = -420,"Query UNTERMINATED"
+  QUERY ':PROG:STEP:COUN?' EXC -> VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
+  QUERY ':PROG:EDIT:STEP:COUN?' EXC -> VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
+  QUERY ':PROG:STEP:COUNT?' EXC -> VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
+  QUERY ':PROG:EDIT:STEP:COUNT?' EXC -> VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
+  QUERY ':PROG:EDIT:COUN?' -> '1'
+  QUERY ':PROG:EDIT:COUNT?' -> '1'
+----------------------------------------
+WRITE ':PROG:EDIT:STEP:LEN 3' -> write_ok=True, SYST:ERR? = -100,"Command error"
+  QUERY ':PROG:STEP:COUN?' EXC -> VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
+  QUERY ':PROG:EDIT:STEP:COUN?' EXC -> VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
+  QUERY ':PROG:STEP:COUNT?' EXC -> VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
+  QUERY ':PROG:EDIT:STEP:COUNT?' EXC -> VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
+  QUERY ':PROG:EDIT:COUN?' -> '1'
+  QUERY ':PROG:EDIT:COUNT?' -> '1'
+----------------------------------------
+WRITE ':PROG:STEP:SIZE 3' -> write_ok=True, SYST:ERR? = -420,"Query UNTERMINATED"
+  QUERY ':PROG:STEP:COUN?' EXC -> VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
+  QUERY ':PROG:EDIT:STEP:COUN?' EXC -> VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
+  QUERY ':PROG:STEP:COUNT?' EXC -> VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
+  QUERY ':PROG:EDIT:STEP:COUNT?' EXC -> VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
+  QUERY ':PROG:EDIT:COUN?' -> '1'
+  QUERY ':PROG:EDIT:COUNT?' -> '1'
+----------------------------------------
+WRITE ':PROG:EDIT:STEP:SIZE 3' -> write_ok=True, SYST:ERR? = -100,"Command error"
+  QUERY ':PROG:STEP:COUN?' EXC -> VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
+  QUERY ':PROG:EDIT:STEP:COUN?' EXC -> VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
+  QUERY ':PROG:STEP:COUNT?' EXC -> VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
+  QUERY ':PROG:EDIT:STEP:COUNT?' EXC -> VI_ERROR_TMO (-1073807339): Timeout expired before operation completed.
+  QUERY ':PROG:EDIT:COUN?' -> '1'
+  QUERY ':PROG:EDIT:COUNT?' -> '1'
+----------------------------------------
 
-# candidate "resize"/"count" commands (write variants)
-RESIZE_CANDIDATES = [
-    ":PROG:STEP:COUN {n}",
-    ":PROG:STEP:COUNT {n}",
-    ":PROG:EDIT:STEP:COUN {n}",
-    ":PROG:EDIT:STEP:COUNT {n}",
-    ":PROG:EDIT:COUN {n}",
-    ":PROG:EDIT:COUNT {n}",
-    ":PROG:STEP:LEN {n}",
-    ":PROG:EDIT:STEP:LEN {n}",
-    ":PROG:STEP:SIZE {n}",
-    ":PROG:EDIT:STEP:SIZE {n}",
-]
+======== Attempt selecting step 1 (PROG:EDIT:STEP:SEL 1) ========
+SYST:ERR? -> -100,"Command error"
 
-# candidate "insert/create" commands (write variants)
-INSERT_CANDIDATES = [
-    ":PROG:EDIT:STEP:INS {n}",
-    ":PROG:STEP:INS {n}",
-    ":PROG:STEP:NEW {n}",
-    ":PROG:EDIT:STEP:NEW {n}",
-    ":PROG:STEP:CRE {n}",
-    ":PROG:EDIT:STEP:CRE {n}",
-    ":PROG:STEP:APP {n}",
-    ":PROG:STEP:ADD {n}",
-    ":PROG:EDIT:STEP:ADD {n}",
-    ":PROG:STEP:MAKE {n}",
-    ":PROG:EDIT:STEP:MAKE {n}",
-]
+======== Trying insert/create candidates for step 1 ========
+WRITE ':PROG:EDIT:STEP:INS 1' -> write_ok=True, SYST:ERR? = -420,"Query UNTERMINATED"
+WRITE ':PROG:STEP:INS 1' -> write_ok=True, SYST:ERR? = -100,"Command error"
+WRITE ':PROG:STEP:NEW 1' -> write_ok=True, SYST:ERR? = -420,"Query UNTERMINATED"
+WRITE ':PROG:EDIT:STEP:NEW 1' -> write_ok=True, SYST:ERR? = -100,"Command error"
+WRITE ':PROG:STEP:CRE 1' -> write_ok=True, SYST:ERR? = -420,"Query UNTERMINATED"
+WRITE ':PROG:EDIT:STEP:CRE 1' -> write_ok=True, SYST:ERR? = -100,"Command error"
+WRITE ':PROG:STEP:APP 1' -> write_ok=True, SYST:ERR? = -420,"Query UNTERMINATED"
+WRITE ':PROG:STEP:ADD 1' -> write_ok=True, SYST:ERR? = -100,"Command error"
+WRITE ':PROG:EDIT:STEP:ADD 1' -> write_ok=True, SYST:ERR? = -100,"Command error"
+WRITE ':PROG:STEP:MAKE 1' -> write_ok=True, SYST:ERR? = -420,"Query UNTERMINATED"
+WRITE ':PROG:EDIT:STEP:MAKE 1' -> write_ok=True, SYST:ERR? = -100,"Command error"
 
-# candidate field write commands (to try writing fields on selected step)
-FIELD_WRITES = [
-    "PROG:EDIT:STEP:VOLT {v}",
-    "PROG:EDIT:STEP:CURR {i}",
-    "PROG:EDIT:STEP:TIME {t}",
-]
+======== Writing field commands (no select) to see device replies ========
+WRITE 'PROG:EDIT:STEP:VOLT 5.0' -> write_ok=True, SYST:ERR? = -420,"Query UNTERMINATED"
+WRITE 'PROG:EDIT:STEP:CURR 1.0' -> write_ok=True, SYST:ERR? = -100,"Command error"
+WRITE 'PROG:EDIT:STEP:TIME 1.0' -> write_ok=True, SYST:ERR? = -420,"Query UNTERMINATED"
 
-# candidate step query commands (ask for content)
-STEP_QUERIES = [
-    "PROG:STEP:DC? {n}",                # some devices offer DC? query
-    "PROG:EDIT:STEP:DC? {n}",
-    "PROG:STEP:VOLT? {n}",
-    "PROG:EDIT:STEP:VOLT? {n}",
-    "PROG:STEP:CURR? {n}",
-    "PROG:EDIT:STEP:CURR? {n}",
-    "PROG:STEP:TIME? {n}",
-    "PROG:EDIT:STEP:TIME? {n}",
-    "PROG:EDIT:STEP:DC? {n}",
-    "PROG:STEP:STAT? {n}",
-    "PROG:EDIT:STEP:STAT? {n}",
-]
+======== Querying step content variants for step 1 (queries may error) ========
+QUERY 'PROG:STEP:DC? 1' -> ok=False, resp='EXC querying PROG:STEP:DC? 1: query() got an unexpected keyword argument 'timeout'', SYST:ERR? after='None'
+QUERY 'PROG:EDIT:STEP:DC? 1' -> ok=False, resp='EXC querying PROG:EDIT:STEP:DC? 1: query() got an unexpected keyword argument 'timeout'', SYST:ERR? after='None'
+QUERY 'PROG:STEP:VOLT? 1' -> ok=False, resp='EXC querying PROG:STEP:VOLT? 1: query() got an unexpected keyword argument 'timeout'', SYST:ERR? after='None'      
+QUERY 'PROG:EDIT:STEP:VOLT? 1' -> ok=False, resp='EXC querying PROG:EDIT:STEP:VOLT? 1: query() got an unexpected keyword argument 'timeout'', SYST:ERR? after='None'
+QUERY 'PROG:STEP:CURR? 1' -> ok=False, resp='EXC querying PROG:STEP:CURR? 1: query() got an unexpected keyword argument 'timeout'', SYST:ERR? after='None'      
+QUERY 'PROG:EDIT:STEP:CURR? 1' -> ok=False, resp='EXC querying PROG:EDIT:STEP:CURR? 1: query() got an unexpected keyword argument 'timeout'', SYST:ERR? after='None'
+QUERY 'PROG:STEP:TIME? 1' -> ok=False, resp='EXC querying PROG:STEP:TIME? 1: query() got an unexpected keyword argument 'timeout'', SYST:ERR? after='None'      
+QUERY 'PROG:EDIT:STEP:TIME? 1' -> ok=False, resp='EXC querying PROG:EDIT:STEP:TIME? 1: query() got an unexpected keyword argument 'timeout'', SYST:ERR? after='None'
+QUERY 'PROG:EDIT:STEP:DC? 1' -> ok=False, resp='EXC querying PROG:EDIT:STEP:DC? 1: query() got an unexpected keyword argument 'timeout'', SYST:ERR? after='None'
+QUERY 'PROG:STEP:STAT? 1' -> ok=False, resp='EXC querying PROG:STEP:STAT? 1: query() got an unexpected keyword argument 'timeout'', SYST:ERR? after='None'      
+QUERY 'PROG:EDIT:STEP:STAT? 1' -> ok=False, resp='EXC querying PROG:EDIT:STEP:STAT? 1: query() got an unexpected keyword argument 'timeout'', SYST:ERR? after='None'
 
-# helper to query SYST:ERR?
-def syst_err(inst, context=""):
-    try:
-        e = inst.query("SYST:ERR?").strip()
-        return e
-    except Exception as ex:
-        return f"EXC querying SYST:ERR? after {context}: {ex}"
+======== Try SELECT 1 then write VOLT/CURR/TIME (catching SYST:ERR?) ========
+After SEL 1, SYST:ERR? -> -100,"Command error"
+WRITE 'PROG:EDIT:STEP:VOLT 5.0' -> write_ok=True, SYST:ERR? = -420,"Query UNTERMINATED"
+WRITE 'PROG:EDIT:STEP:CURR 1.0' -> write_ok=True, SYST:ERR? = -100,"Command error"
+WRITE 'PROG:EDIT:STEP:TIME 0.5' -> write_ok=True, SYST:ERR? = -100,"Command error"
 
-def safe_write(inst, cmd):
-    try:
-        inst.write(cmd)
-        time.sleep(0.05)
-        err = syst_err(inst, cmd)
-        return True, err
-    except Exception as ex:
-        return False, f"EXC writing {cmd}: {ex}"
+======== Trying to save program (:PROG:SAVE) ========
+SAVE -> write_ok=True, SYST:ERR? = -420,"Query UNTERMINATED"
 
-def safe_query(inst, cmd):
-    try:
-        resp = inst.query(cmd, timeout=TIMEOUT_MS).strip()
-        err = syst_err(inst, cmd)
-        return True, resp, err
-    except Exception as ex:
-        return False, f"EXC querying {cmd}: {ex}", None
-
-def print_block(title):
-    print("\n" + "="*8 + " " + title + " " + "="*8)
-
-def main():
-    rm = pyvisa.ResourceManager()
-    print("Opening resource:", RESOURCE)
-    inst = rm.open_resource(RESOURCE)
-    inst.read_termination = "\n"
-    inst.write_termination = "\n"
-    inst.timeout = TIMEOUT_MS
-    print("IDN:", inst.query("*IDN?").strip())
-
-    # Basic program select so we're in a program context
-    inst.write("*CLS")
-    inst.write("ABORT")
-    inst.write("SYST:REM")
-    time.sleep(0.1)
-    inst.write(':PROG:NAME "1"')
-    time.sleep(0.05)
-    print("After selecting program slot '1', SYST:ERR? ->", syst_err(inst, "select program"))
-
-    # 1) Try resizing candidates to 3 steps (safe small number)
-    print_block("Testing resize/counter commands (try to set 3 steps)")
-    for c in RESIZE_CANDIDATES:
-        cmd = c.format(n=3)
-        ok, result = safe_write(inst, cmd)
-        print(f"WRITE '{cmd}' -> write_ok={ok}, SYST:ERR? = {result}")
-
-        # also try query variations for the count right after
-        queries = [
-            ":PROG:STEP:COUN?",
-            ":PROG:EDIT:STEP:COUN?",
-            ":PROG:STEP:COUNT?",
-            ":PROG:EDIT:STEP:COUNT?",
-            ":PROG:EDIT:COUN?",
-            ":PROG:EDIT:COUNT?",
-        ]
-        for q in queries:
-            qcmd = q
-            try:
-                r = inst.query(qcmd).strip()
-                print(f"  QUERY '{qcmd}' -> '{r}'")
-            except Exception as e:
-                print(f"  QUERY '{qcmd}' EXC -> {e}")
-        print("-"*40)
-
-    # 2) Try selecting step 1 (should fail if none)
-    print_block("Attempt selecting step 1 (PROG:EDIT:STEP:SEL 1)")
-    try:
-        inst.write("PROG:EDIT:STEP:SEL 1")
-        time.sleep(0.05)
-        print("SYST:ERR? ->", syst_err(inst, "SEL 1"))
-    except Exception as e:
-        print("EXC selecting step:", e)
-
-    # 3) Try many insert/create commands for step 1
-    print_block("Trying insert/create candidates for step 1")
-    for template in INSERT_CANDIDATES:
-        cmd = template.format(n=1)
-        ok, result = safe_write(inst, cmd)
-        print(f"WRITE '{cmd}' -> write_ok={ok}, SYST:ERR? = {result}")
-
-    # 4) Try writing fields WITHOUT selecting (to see device errors)
-    print_block("Writing field commands (no select) to see device replies")
-    writes = [
-        f"PROG:EDIT:STEP:VOLT 5.0",
-        f"PROG:EDIT:STEP:CURR 1.0",
-        f"PROG:EDIT:STEP:TIME 1.0",
-    ]
-    for w in writes:
-        ok, result = safe_write(inst, w)
-        print(f"WRITE '{w}' -> write_ok={ok}, SYST:ERR? = {result}")
-
-    # 5) Try queries for step content (step 1)
-    print_block("Querying step content variants for step 1 (queries may error)")
-    for q in STEP_QUERIES:
-        qcmd = q.format(n=1)
-        ok, resp, err = safe_query(inst, qcmd)
-        print(f"QUERY '{qcmd}' -> ok={ok}, resp='{resp}', SYST:ERR? after='{err}'")
-
-    # 6) Try creating step by writing a 'step select + fields' sequence
-    print_block("Try SELECT 1 then write VOLT/CURR/TIME (catching SYST:ERR?)")
-    inst.write("PROG:EDIT:STEP:SEL 1")
-    time.sleep(0.05)
-    print("After SEL 1, SYST:ERR? ->", syst_err(inst, "SEL 1 (final)"))
-    for w in ["PROG:EDIT:STEP:VOLT 5.0", "PROG:EDIT:STEP:CURR 1.0", "PROG:EDIT:STEP:TIME 0.5"]:
-        ok, result = safe_write(inst, w)
-        print(f"WRITE '{w}' -> write_ok={ok}, SYST:ERR? = {result}")
-
-    # 7) Try to save (harmless)
-    print_block("Trying to save program (:PROG:SAVE)")
-    ok, result = safe_write(inst, ":PROG:SAVE")
-    print(f"SAVE -> write_ok={ok}, SYST:ERR? = {result}")
-
-    print("\nPROBE COMPLETE. Close connection.")
-    inst.close()
-
-if __name__ == "__main__":
-    main()
+PROBE COMPLETE. Close connection.
