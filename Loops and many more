@@ -1,0 +1,149 @@
+# acc_full_run.py
+import pyvisa
+import time
+import math
+
+TARGET_RESOURCE = "USB0::0x0B3E::0x1012::EZ002642::INSTR"  # ACC device
+
+def open_inst(resource=TARGET_RESOURCE, timeout_ms=20000):
+    rm = pyvisa.ResourceManager()
+    print("VISA resources:", rm.list_resources())
+    inst = rm.open_resource(resource)
+    inst.read_termination = '\n'
+    inst.write_termination = '\n'
+    inst.timeout = timeout_ms
+    return inst
+
+def do_opc(inst):
+    try:
+        return inst.query('*OPC?').strip()
+    except Exception:
+        # fallback small delay
+        time.sleep(0.05)
+        return None
+
+def set_program_title_and_loop(inst, program=1, title="PYTHON_TEST", loop_count=1):
+    # select program
+    inst.write(f'PROG:NAME "{program}"')
+    time.sleep(0.08)
+    # set program title
+    inst.write(f'PROG:EDIT:TITL "{title}"')
+    do_opc(inst)
+    # set program loop count (program-level loop)
+    inst.write(f'PROG:EDIT:LOOP {loop_count}')
+    do_opc(inst)
+    # verify
+    try:
+        rb = inst.query('PROG:EDIT:TITL?').strip()
+        loop_rb = inst.query('PROG:EDIT:LOOP?').strip()
+    except Exception as e:
+        rb = f"<readback error: {e}>"
+        loop_rb = "<readback error>"
+    print("Program title readback:", repr(rb))
+    print("Program loop readback:", loop_rb)
+
+def set_voltage(inst, v):
+    inst.write(f':SOUR:VOLT {v:.6f}')
+    # give device a short moment to accept
+    do_opc(inst)
+
+def ramp_voltage(inst, v_from, v_to, step_ms=5, max_steps=300):
+    """Linear ramp between two voltages in small steps. step_ms in milliseconds."""
+    if abs(v_to - v_from) < 1e-6:
+        set_voltage(inst, v_to)
+        return
+    step_s = max(0.001, step_ms / 1000.0)
+    delta = v_to - v_from
+    # choose number of steps limited by max_steps to avoid too many USB writes
+    steps = min(max_steps, max(1, int(math.ceil(abs(delta) / 0.01))))
+    step_val = delta / steps
+    v = v_from
+    for i in range(steps):
+        v += step_val
+        inst.write(f':SOUR:VOLT {v:.6f}')
+        time.sleep(step_s)
+    # final exact
+    inst.write(f':SOUR:VOLT {v_to:.6f}')
+    do_opc(inst)
+
+def run_acc_pattern(inst, pattern_steps, loops=1, ramp_step_ms=None, current_limit=None, leave_output_on=False):
+    """
+    pattern_steps: list of (voltage, duration_seconds) pairs, e.g.
+      [(13.0,1.0), (12.0,20.0), (13.0,2.0)]
+    loops: repeat count (int)
+    ramp_step_ms: if set, ramp between step voltages in increments every ramp_step_ms ms
+    current_limit: optional current limit (A)
+    """
+    # safety: start with output off
+    try:
+        inst.write(':OUTP OFF')
+    except Exception:
+        pass
+
+    if current_limit is not None:
+        inst.write(f':SOUR:CURR {current_limit:.6f}')
+        do_opc(inst)
+
+    # initial voltage = current instrument source or first step
+    first_v = float(pattern_steps[0][0])
+    set_voltage(inst, first_v)
+
+    for loopi in range(loops):
+        print(f"Starting loop {loopi+1}/{loops}")
+        for i, (v, duration) in enumerate(pattern_steps):
+            v = float(v)
+            duration = float(duration)
+            if i == 0:
+                # already set to first step; if ramp requested and previous loop ended different, we can ramp
+                set_voltage(inst, v)
+            else:
+                prev_v = float(pattern_steps[i-1][0])
+                if ramp_step_ms:
+                    ramp_voltage(inst, prev_v, v, step_ms=ramp_step_ms)
+                else:
+                    set_voltage(inst, v)
+
+            # enable output if not already
+            inst.write(':OUTP ON')
+            # duration wait
+            end_t = time.time() + duration
+            while time.time() < end_t:
+                # small sleep to be interruptible
+                time.sleep(min(0.1, end_t - time.time()))
+
+        # end of single program loop, optionally turn off briefly
+        inst.write(':OUTP OFF')
+        time.sleep(0.1)
+
+    # final behavior
+    if leave_output_on:
+        set_voltage(inst, float(pattern_steps[-1][0]))
+        inst.write(':OUTP ON')
+    else:
+        inst.write(':OUTP OFF')
+    print("ACC pattern run complete.")
+
+if __name__ == "__main__":
+    inst = open_inst()
+    try:
+        # 1) set the program title & loop at PROGRAM level (this will appear in RECALL/PROGRAM menu)
+        set_program_title_and_loop(inst, program=1, title="PYTHON_TEST_ACC", loop_count=3)
+
+        # 2) Define ACC pattern (edit to match your diagram exactly)
+        # Example from your diagram: 13V for 1s, 12V for 20s, 13V for 2s
+        pattern = [
+            (13.0, 1.0),
+            (12.0, 20.0),
+            (13.0, 2.0),
+        ]
+
+        # If you need IG2-style fine sweep configure ramp_step_ms small (e.g. 5 ms).
+        # Note: Windows/Python + USB latency limits precision under ~10 ms.
+        run_acc_pattern(inst, pattern_steps=pattern, loops=3, ramp_step_ms=5, current_limit=5.0, leave_output_on=False)
+
+    finally:
+        try:
+            inst.write(':OUTP OFF')
+        except Exception:
+            pass
+        inst.close()
