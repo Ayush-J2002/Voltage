@@ -1,73 +1,170 @@
-import pyvisa
+    import pyvisa
 import time
 
-RESOURCE = "USB0::0x0B3E::0x1012::EZ002642::INSTR"
+# --- (1) --- EDIT YOUR TEST HERE --- (1) ---
+
+# UPDATE WITH YOUR ADDRESS
+TARGET_RESOURCE = "USB0::0x0B3E::0x1012::EZ002642::INSTR" 
+
+# CHOOSE PROGRAM SLOT (Your device expects "1", "2", etc.)
 PROGRAM_SLOT = "1"
 
-# Put your step definitions here
-STEPS = [
-    {"step": 1, "volt": 13.0,  "time": 1.0},
-    {"step": 2, "volt": 12.0, "time": 1.1},
-    {"step": 3, "volt": 13.0,  "time": 42.0},
-    
+# CHOOSE TITLE AND LOOP COUNT
+PROGRAM_TITLE = "ACC_D1_FINAL"
+LOOP_COUNT = 1
+
+# CHOOSE CURRENT LIMIT (Your OCP is 6A, so 5.0 is safe)
+CURRENT_LIMIT = 5.0
+
+# DEFINE YOUR STEPS
+PATTERN_TO_UPLOAD = [
+    {'step': 1, 'volt': 0.0, 'time': 1.0},    # Start OFF for 1s
+    {'step': 2, 'volt': 12.0, 'time': 0.1},   # 12V for 100ms
+    {'step': 3, 'volt': 0.0, 'time': 1.0},    # OFF for 1s (during sweep)
+    {'step': 4, 'volt': 13.0, 'time': 20.0},  # 13V for 20s
+    {'step': 5, 'volt': 0.0, 'time': 2.0}     # OFF for 2s
 ]
+# --- (End of Edit Section) ---
 
-def open_inst(resource):
-    rm = pyvisa.ResourceManager()
-    inst = rm.open_resource(resource)
-    inst.read_termination = "\n"
-    inst.write_termination = "\n"
-    inst.timeout = 5000
-    return inst
 
-def syserr(inst):
+def do_opc(inst):
+    """
+    (From your script)
+    Waits for the instrument to finish its last command.
+    This prevents timing and "Settings conflict" errors.
+    """
     try:
-        return inst.query("SYST:ERR?").strip()
-    except:
-        return "ERR?"
+        # Ask "Are you done?" and wait for the "1" response
+        inst.query('*OPC?')
+    except Exception as e:
+        # Fallback if query fails
+        print(f"  (OPC Wait, Error: {e})")
+        time.sleep(0.5)
 
-def write(inst, cmd):
-    inst.write(cmd)
-    time.sleep(0.1)
-    err = syserr(inst)
-    print(f"WROTE '{cmd}' -> {err}")
-    return err
+def upload_and_run_sequence(inst, slot, title, loops, current, steps_list):
+    """
+    This function correctly uploads a full sequence to the PBZ's
+    internal memory and then runs it.
+    """
+    try:
+        # --- 1. RESET AND SETUP ---
+        print("1. Resetting device and clearing errors...")
+        inst.write('*CLS')
+        inst.write('ABORT')
+        inst.write(':PROG:EXEC:STAT STOP')
+        inst.write('SYST:REM')
+        do_opc(inst) # Wait for reset to finish
 
-def main():
-    inst = open_inst(RESOURCE)
+        # --- 2. SELECT PROGRAM SLOT ---
+        print(f"2. Selecting Program Slot: '{slot}'")
+        inst.write(f':PROG:NAME "{slot}"')
+        do_opc(inst) # Wait for program to load
 
-    print("IDN:", inst.query("*IDN?").strip())
-    inst.write("*CLS")
-    inst.write("ABORT")
-    inst.write("SYST:REM")
-    time.sleep(0.2)
+        # --- 3. CONFIGURE HEADER (Title, Loop, and ALL Modes) ---
+        print(f"3. Setting Title, Loops, CV Mode, and Bipolar Mode...")
+        inst.write(f':PROG:EDIT:TITL "{title}"')
+        inst.write(f':PROG:EDIT:LOOP {loops}')
+        inst.write(':PROG:EDIT:FUNCtion:MODE CV')
+        inst.write(':PROG:EDIT:FUNCtion:POLarity BIPolar')
+        do_opc(inst) # Wait for header edits
+        
+        # --- 4. RESIZE PROGRAM ---
+        step_count = len(steps_list)
+        print(f"4. Deleting old steps and adding {step_count} new steps...")
+        
+        inst.write(':PROG:EDIT:DELete') 
+        inst.write(f':PROG:EDIT:ADD {step_count}') 
+        
+        # --- THIS IS THE CRITICAL FIX ---
+        # We MUST wait for the device to finish adding the steps
+        # before we try to edit them.
+        print("   Waiting for device to create steps...")
+        do_opc(inst)
+        
+        # Check for errors *after* waiting
+        err = inst.query('SYST:ERR?')
+        if "No error" not in err:
+            print(f"   !!! ERROR during resize: {err.strip()} !!!")
+            return
 
-    # Select program slot
-    inst.write(f':PROG:NAME "{PROGRAM_SLOT}"')
-    print("After selecting program slot:", syserr(inst))
+        # --- 5. UPLOAD STEPS ---
+        print("5. Uploading steps (one by one)...")
+        for s in steps_list:
+            step_num = s['step']
+            print(f"   --- Writing Step {step_num} ---")
+            
+            # 1. Select the step to edit (Page 57)
+            inst.write(f':PROG:EDIT:STEP:SEL {step_num}')
+            
+            # 2. Set DC Voltage (Page 58)
+            inst.write(f":PROG:EDIT:STEP:VOLT {s['volt']}, IMMediate")
+            
+            # 3. Set DC Current (Page 58)
+            inst.write(f":PROG:EDIT:STEP:CURR {current}, IMMediate")
+            
+            # 4. Set Time (Page 63)
+            inst.write(f":PROG:EDIT:STEP:TIME {s['time']}")
+            
+            # 5. Set Output State (Page 63)
+            inst.write(':PROG:EDIT:STEP:STAT ON, OFF, OFF')
+            
+            # Wait for all step commands to finish
+            do_opc(inst)
 
-    # Write each step
-    for s in STEPS:
-        n = s["step"]
-        v = s["volt"]
-        t = s["time"]
+            # Check for errors
+            err = inst.query('SYST:ERR?')
+            if "No error" not in err:
+                print(f"   !!! ERROR on Step {step_num}: {err.strip()} !!!")
+                return
 
-        print("\n=== Writing Step", n, "===")
+        # --- 6. SAVE PROGRAM TO MEMORY ---
+        print("6. Saving program to device EEPROM...")
+        inst.write(':PROG:SAVE')
+        do_opc(inst) 
 
-        # Select step
-        write(inst, f"PROG:EDIT:STEP:SEL {n}")
+        print("\n--- PROGRAM UPLOAD COMPLETE ---")
+        print("Check device screen: Title and Steps should be updated.")
 
-        # Write voltage
-        write(inst, f"PROG:EDIT:STEP:VOLT {v}")
+        # --- 7. RUN THE PROGRAM ---
+        print("7. Turning OUTPUT ON and RUNNING sequence...")
+        inst.write('OUTP 1')
+        do_opc(inst)
+        inst.write(':PROG:EXEC:STAT RUN')
+        
+        print("\n--- SEQUENCE IS RUNNING ---")
 
-        # Write time
-        write(inst, f"PROG:EDIT:STEP:TIME {t}")
+    except Exception as e:
+        print(f"CRITICAL ERROR: {e}")
+        try:
+            inst.write('OUTP 0') # Safety off
+        except:
+            pass
 
-    # Save program
-    write(inst, ":PROG:SAVE")
-
-    inst.close()
-    print("\nDone. Steps updated successfully.")
-
+# --- Main execution ---
 if __name__ == "__main__":
-    main()
+    pbz = None
+    try:
+        rm = pyvisa.ResourceManager()
+        pbz = rm.open_resource(TARGET_RESOURCE)
+        pbz.read_termination = '\n'
+        pbz.write_termination = '\n'
+        pbz.timeout = 10000 # 10 second timeout (increased for safety)
+        
+        print(f"Connected to: {pbz.query('*IDN?').strip()}")
+
+        upload_and_run_sequence(
+            inst=pbz,
+            slot=PROGRAM_SLOT,
+            title=PROGRAM_TITLE,
+            loops=LOOP_COUNT,
+            current=CURRENT_LIMIT,
+            steps_list=PATTERN_TO_UPLOAD
+        )
+
+    except Exception as e:
+        print(f"Failed to connect or run: {e}")
+        
+    finally:
+        if pbz:
+            pbz.close()
+            print("Connection closed.")
