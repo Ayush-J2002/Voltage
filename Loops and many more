@@ -1,88 +1,74 @@
-# test_edit_one_step.py
-# Purpose: robustly test select-then-write (unindexed) commands that you say work on your unit.
-# Usage: python test_edit_one_step.py
+import pyvisa
+import time
 
-import pyvisa, time
+RESOURCE = "USB0::0x0B3E::0x1012::EZ002642::INSTR"
+PROGRAM_SLOT = "1"
 
-RESOURCE = "USB0::0x0B3E::0x1012::EZ002642::INSTR"  # change if needed
-PROGRAM_SLOT = "1"   # program slot you want to edit
-STEP_TO_TEST = 1
-TEST_VOLT = 5.0
-TEST_TIME = 0.5
-TEST_CURR = 5.0      # current limit (if you want to test CURR)
+# Put your step definitions here
+STEPS = [
+    {"step": 1, "volt": 0.0,  "time": 1.0},
+    {"step": 2, "volt": 12.0, "time": 0.1},
+    {"step": 3, "volt": 0.0,  "time": 1.0},
+    {"step": 4, "volt": 13.0, "time": 20.0},
+    {"step": 5, "volt": 0.0,  "time": 2.0},
+]
 
-def open_inst(resource, timeout_ms=5000):
+def open_inst(resource):
     rm = pyvisa.ResourceManager()
     inst = rm.open_resource(resource)
     inst.read_termination = "\n"
     inst.write_termination = "\n"
-    inst.timeout = timeout_ms
+    inst.timeout = 5000
     return inst
 
-def syserr(inst, ctx=""):
+def syserr(inst):
     try:
         return inst.query("SYST:ERR?").strip()
-    except Exception as e:
-        return f"EXC SYST:ERR? after {ctx}: {e}"
+    except:
+        return "ERR?"
 
-def write_and_report(inst, cmd):
-    try:
-        inst.write(cmd)
-    except Exception as e:
-        print(f"EXC writing '{cmd}': {e}")
-        return
-    time.sleep(0.08)
-    print(f"WROTE '{cmd}' -> SYST:ERR? = {syserr(inst, cmd)}")
-
-def query_and_report(inst, cmd):
-    try:
-        r = inst.query(cmd).strip()
-        print(f"QUERY '{cmd}' -> '{r}'")
-    except Exception as e:
-        print(f"EXC querying '{cmd}': {e}")
+def write(inst, cmd):
+    inst.write(cmd)
+    time.sleep(0.1)
+    err = syserr(inst)
+    print(f"WROTE '{cmd}' -> {err}")
+    return err
 
 def main():
     inst = open_inst(RESOURCE)
-    try:
-        print("IDN:", end=" ")
-        query_and_report(inst, "*IDN?")
-        # basic preparation
-        for c in ("*CLS", "ABORT", "SYST:REM"):
-            inst.write(c)
-            time.sleep(0.02)
-        # select program slot
-        inst.write(f':PROG:NAME "{PROGRAM_SLOT}"')
-        time.sleep(0.05)
-        print("After selecting program slot:", syserr(inst, "select program"))
 
-        # Now try select the step (this is the form you said works)
-        sel_cmd = f"PROG:EDIT:STEP:SEL {STEP_TO_TEST}"
-        write_and_report(inst, sel_cmd)
+    print("IDN:", inst.query("*IDN?").strip())
+    inst.write("*CLS")
+    inst.write("ABORT")
+    inst.write("SYST:REM")
+    time.sleep(0.2)
 
-        # Now write VOLT (unindexed) — the form you observed working
-        volt_cmd = f"PROG:EDIT:STEP:VOLT {TEST_VOLT}"
-        write_and_report(inst, volt_cmd)
+    # Select program slot
+    inst.write(f':PROG:NAME "{PROGRAM_SLOT}"')
+    print("After selecting program slot:", syserr(inst))
 
-        # Write CURR (if supported)
-        curr_cmd = f"PROG:EDIT:STEP:CURR {TEST_CURR}"
-        write_and_report(inst, curr_cmd)
+    # Write each step
+    for s in STEPS:
+        n = s["step"]
+        v = s["volt"]
+        t = s["time"]
 
-        # Write TIME (unindexed)
-        time_cmd = f"PROG:EDIT:STEP:TIME {TEST_TIME}"
-        write_and_report(inst, time_cmd)
+        print("\n=== Writing Step", n, "===")
 
-        # Try a couple of readbacks (may timeout on your FW; still try)
-        for q in (f"PROG:EDIT:STEP:VOLT? {STEP_TO_TEST}", f"PROG:STEP:VOLT? {STEP_TO_TEST}", "PROG:EDIT:COUN?"):
-            query_and_report(inst, q)
+        # Select step
+        write(inst, f"PROG:EDIT:STEP:SEL {n}")
 
-        # Save (harmless)
-        write_and_report(inst, ":PROG:SAVE")
+        # Write voltage
+        write(inst, f"PROG:EDIT:STEP:VOLT {v}")
 
-    finally:
-        try:
-            inst.close()
-        except:
-            pass
+        # Write time
+        write(inst, f"PROG:EDIT:STEP:TIME {t}")
+
+    # Save program
+    write(inst, ":PROG:SAVE")
+
+    inst.close()
+    print("\nDone. Steps updated successfully.")
 
 if __name__ == "__main__":
     main()
