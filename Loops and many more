@@ -1,123 +1,165 @@
-# replacement_steps_upload.py
 import pyvisa
 import time
 
 TARGET_RESOURCE = "USB0::0x0B3E::0x1012::EZ002642::INSTR"
-PROGRAM_SLOT    = "1"
-PROGRAM_TITLE   = "ACC_D1_TEST"
-LOOP_COUNT      = 1
-CURRENT_LIMIT_A = 5.0
 
-PATTERN_TO_UPLOAD = [
+# Example program/steps
+PROGRAM_SLOT = "1"
+PROGRAM_TITLE = "ACC_D1_TEST"
+LOOP_COUNT = 1
+CURRENT_LIMIT_A = 5.0
+NEW_STEPS = [
     {"step": 1, "volt": 0.0,  "time": 1.0},
     {"step": 2, "volt": 12.0, "time": 0.1},
     {"step": 3, "volt": 0.0,  "time": 1.0},
-    {"step": 4, "volt": 13.0, "time": 20.0},
-    {"step": 5, "volt": 0.0,  "time": 2.0},
 ]
 
-def query_err(inst, ctx=""):
-    """Query instrument error register and raise on error text."""
+def scpi_err(inst, context=""):
+    """Query SYST:ERR? and raise a RuntimeError with the text (for visibility)."""
     try:
         e = inst.query("SYST:ERR?").strip()
-    except Exception:
-        raise RuntimeError(f"{ctx}: failed to query SYST:ERR?")
-    # many instruments return "0,No error" or similar; treat any non "No error" as problem
+    except Exception as ex:
+        raise RuntimeError(f"{context}: failed to query SYST:ERR? -> {ex}")
     if e and ("no error" not in e.lower() and not e.startswith("0,")):
-        raise RuntimeError(f"SCPI error after {ctx}: {e}")
-    return e
+        # Return the error string for printing without raising immediately
+        return e
+    return None
 
-def select_program(inst, slot):
+def try_resize(inst, n):
+    """
+    Try a list of candidate resize commands. Return True if any succeeded.
+    Also returns the last SYST:ERR? text (if any).
+    """
+    # Candidate commands observed across PBZ/variants — we will try them in order.
+    candidates = [
+        f":PROG:STEP:COUN {int(n)}",
+        f":PROG:EDIT:STEP:COUN {int(n)}",
+        f":PROG:STEP:COUNT {int(n)}",      # sometimes spelled COUNT
+        f":PROG:EDIT:STEP:COUNT {int(n)}",
+        f":PROG:EDIT:COUN {int(n)}",
+    ]
+    last_err = None
+    for cmd in candidates:
+        try:
+            inst.write(cmd)
+            time.sleep(0.05)
+            last_err = scpi_err(inst, f"after write {cmd}")
+            if last_err is None:
+                # verify by attempting to read back count (try several queries)
+                for q in (":PROG:STEP:COUN?", ":PROG:EDIT:STEP:COUN?", ":PROG:STEP:COUNT?", ":PROG:EDIT:STEP:COUNT?", ":PROG:EDIT:COUN?"):
+                    try:
+                        resp = inst.query(q).strip()
+                        if resp:
+                            # many devices reply like "3" or "3,OK" or "3\r\n"
+                            try:
+                                cnt = int(resp.split(",")[0])
+                                if cnt >= n:
+                                    return True, None
+                            except Exception:
+                                # not integer parseable; continue trying other queries
+                                pass
+                    except Exception:
+                        pass
+                # if no query returned a count but SYST:ERR? is clear, treat as success
+                return True, None
+            else:
+                print(f"Resize attempt '{cmd}' returned error: {last_err}")
+        except Exception as ex:
+            last_err = f"EXCEPTION writing {cmd}: {ex}"
+            print(last_err)
+    return False, last_err
+
+def write_step_using_edit_fields(inst, step_idx, volt, curr, t):
+    """
+    Select the step then write VOLT/CURR/TIME. Use the standard edit-field commands.
+    """
+    inst.write(f"PROG:EDIT:STEP:SEL {int(step_idx)}")
+    ee = scpi_err(inst, f"after SEL {step_idx}")
+    if ee: raise RuntimeError(f"SEL {step_idx} failed -> {ee}")
+
+    inst.write(f"PROG:EDIT:STEP:VOLT {float(volt)}")
+    ee = scpi_err(inst, f"after VOLT {step_idx}")
+    if ee: raise RuntimeError(f"VOLT {step_idx} failed -> {ee}")
+
+    inst.write(f"PROG:EDIT:STEP:CURR {float(curr)}")
+    ee = scpi_err(inst, f"after CURR {step_idx}")
+    if ee: raise RuntimeError(f"CURR {step_idx} failed -> {ee}")
+
+    inst.write(f"PROG:EDIT:STEP:TIME {float(t)}")
+    ee = scpi_err(inst, f"after TIME {step_idx}")
+    if ee: raise RuntimeError(f"TIME {step_idx} failed -> {ee}")
+
+def upload_program(inst, slot, title, loops, steps, current_limit):
+    # select program
     inst.write("*CLS")
     inst.write("ABORT")
     inst.write("SYST:REM")
-    time.sleep(0.1)
-    inst.write(f':PROG:NAME "{slot}"')   # select/create program slot
-    query_err(inst, "select_program")
+    time.sleep(0.05)
+    inst.write(f':PROG:NAME "{slot}"')
+    e = scpi_err(inst, "select program")
+    if e: print("select program SYST:ERR? ->", e)
 
-def set_program_header(inst, title, loops):
     inst.write(f':PROG:EDIT:TITL "{title}"')
     inst.write(f":PROG:EDIT:LOOP {int(loops)}")
-    query_err(inst, "set_program_header")
+    e = scpi_err(inst, "set title/loop")
+    if e: print("title/loop SYST:ERR? ->", e)
 
-def clear_program_steps(inst):
-    """Delete all steps in the selected program (optional, safe start)."""
-    inst.write(":PROG:EDIT:DEL")   # deletes all steps for selected program
-    query_err(inst, "clear_program_steps")
+    # Attempt to set step count to the number we need
+    desired = len(steps)
+    ok, last_err = try_resize(inst, desired)
+    if not ok:
+        raise RuntimeError(f"Failed to resize to {desired} steps. Last error: {last_err}")
 
-def write_step_fields(inst, step_idx, volt, curr_limit, dwell_s):
-    """
-    Create / select the step index, then set its VOLT, CURR and TIME fields.
-    The manual shows selecting a step with PROG:EDIT:STEP:SEL and setting fields with
-    PROG:EDIT:STEP:VOLT / :CURR / :TIME.
-    """
-    inst.write(f"PROG:EDIT:STEP:SEL {int(step_idx)}")
-    query_err(inst, f"select step {step_idx}")
+    # verify actual count by trying queries
+    count = None
+    for q in (":PROG:STEP:COUN?", ":PROG:EDIT:STEP:COUN?", ":PROG:STEP:COUNT?", ":PROG:EDIT:STEP:COUNT?"):
+        try:
+            resp = inst.query(q).strip()
+            if resp:
+                try:
+                    count = int(resp.split(",")[0])
+                    break
+                except Exception:
+                    pass
+        except Exception:
+            pass
+    print("Verified step count (queried) =", count)
 
-    # Set DC voltage for selected step
-    inst.write(f"PROG:EDIT:STEP:VOLT {float(volt)}")
-    query_err(inst, f"VOLT step {step_idx}")
+    if count is not None and count < desired:
+        raise RuntimeError(f"After resize, device reports only {count} steps (< {desired}).")
 
-    # Set current (I limit) for selected step
-    inst.write(f"PROG:EDIT:STEP:CURR {float(curr_limit)}")
-    query_err(inst, f"CURR step {step_idx}")
+    # Now write each step's fields
+    for s in sorted(steps, key=lambda x: x["step"]):
+        print(f"Writing step {s['step']} => V={s['volt']} V, I={current_limit} A, T={s['time']} s")
+        try:
+            write_step_using_edit_fields(inst, s['step'], s['volt'], current_limit, s['time'])
+        except RuntimeError as re:
+            # Print SYST:ERR? and re-raise to show raw instrument text
+            print("Error text from instrument:", scpi_err(inst, f"after failing step {s['step']}"))
+            raise
 
-    # Set the dwell / execution time for the selected step
-    inst.write(f"PROG:EDIT:STEP:TIME {float(dwell_s)}")
-    query_err(inst, f"TIME step {step_idx}")
-
-    # optionally: ensure output state for that step (ON=1 or OFF=0) and triggers (example: ON,OFF,OFF)
-    # inst.write(f"PROG:EDIT:STEP:STAT 1,0,0")
-    # query_err(inst, f"STAT step {step_idx}")
-
-def save_program(inst):
+    # Save
     inst.write(":PROG:SAVE")
-    time.sleep(0.3)
-    query_err(inst, "save_program")
+    time.sleep(0.2)
+    print("Saved. SYST:ERR? ->", scpi_err(inst, "after save"))
 
-def run_program(inst):
-    inst.write("OUTP 1")
-    time.sleep(0.1)
-    inst.write(":PROG:EXEC:STAT RUN")
-    query_err(inst, "run_program")
-
-def upload_and_run_sequence(resource_str, slot, title, loops, current_limit, steps_list, run=True):
+def main():
     rm = pyvisa.ResourceManager()
-    inst = rm.open_resource(resource_str)
+    inst = rm.open_resource(TARGET_RESOURCE)
     inst.read_termination = "\n"
     inst.write_termination = "\n"
     inst.timeout = 5000
 
     try:
         print("IDN:", inst.query("*IDN?").strip())
-        select_program(inst, slot)
-        set_program_header(inst, title, loops)
-
-        # wipe existing steps to avoid leftovers (optional)
-        clear_program_steps(inst)
-
-        # write each step: select then set fields
-        for s in sorted(steps_list, key=lambda x: x["step"]):
-            print(f"Writing step {s['step']}: V={s['volt']}V, T={s['time']}s")
-            write_step_fields(inst, s["step"], s["volt"], current_limit, s["time"])
-
-        save_program(inst)
-        print("Program saved.")
-
-        if run:
-            run_program(inst)
-            print("Program started.")
+        upload_program(inst, PROGRAM_SLOT, PROGRAM_TITLE, LOOP_COUNT, NEW_STEPS, CURRENT_LIMIT_A)
+    except Exception as e:
+        print("FAILED:", e)
     finally:
-        inst.close()
-        print("Connection closed.")
+        try:
+            inst.close()
+        except:
+            pass
 
 if __name__ == "__main__":
-    upload_and_run_sequence(
-        TARGET_RESOURCE,
-        PROGRAM_SLOT,
-        PROGRAM_TITLE,
-        LOOP_COUNT,
-        CURRENT_LIMIT_A,
-        PATTERN_TO_UPLOAD,
-        run=True
-    )
+    main()
