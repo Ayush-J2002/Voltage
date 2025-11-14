@@ -39,27 +39,31 @@ def upload_and_run_sequence(inst, slot, title, loops, current, steps_list):
         print("1. Resetting device and clearing errors...")
         inst.write('*CLS')   # Clear errors
         inst.write('ABORT') # Stop any running sequence
+        
+        # --- THIS IS THE NEW FIX ---
+        # We must explicitly tell the sequence engine to STOP
+        # before we are allowed to edit steps. (Page 64)
+        print("2. Forcing Sequence Engine to STOP...")
+        inst.write(':PROG:EXEC:STAT STOP')
+        
         inst.write('SYST:REM') # Force Remote Mode
         time.sleep(0.5)
 
-        # --- 2. SELECT PROGRAM SLOT ---
-        print(f"2. Selecting Program Slot: '{slot}'")
+        # --- 3. SELECT PROGRAM SLOT ---
+        print(f"3. Selecting Program Slot: '{slot}'")
         inst.write(f':PROG:NAME "{slot}"')
         time.sleep(1.0) # Give device time to load the program
 
-        # --- 3. CONFIGURE HEADER (Title, Loop, and MODE) ---
-        print(f"3. Setting Title, Loops, and CV Mode...")
+        # --- 4. CONFIGURE HEADER (Title, Loop, and ALL Modes) ---
+        print(f"4. Setting Title, Loops, CV Mode, and Bipolar Mode...")
         inst.write(f':PROG:EDIT:TITL "{title}"')
         inst.write(f':PROG:EDIT:LOOP {loops}')
-        
-        # --- THIS IS THE FIX ---
-        # We must set the Program's mode to CV to resolve
-        # the -221 "Settings conflict" error. (Page 56)
         inst.write(':PROG:EDIT:FUNCtion:MODE CV')
+        inst.write(':PROG:EDIT:FUNCtion:POLarity BIPolar')
         
-        # --- 4. RESIZE PROGRAM ---
+        # --- 5. RESIZE PROGRAM ---
         step_count = len(steps_list)
-        print(f"4. Deleting old steps and adding {step_count} new steps...")
+        print(f"5. Deleting old steps and adding {step_count} new steps...")
         
         inst.write(':PROG:EDIT:DELete') 
         inst.write(f':PROG:EDIT:ADD {step_count}') 
@@ -71,14 +75,15 @@ def upload_and_run_sequence(inst, slot, title, loops, current, steps_list):
             print("   Stopping script.")
             return
 
-        # --- 5. UPLOAD STEPS ---
-        print("5. Uploading steps (one by one)...")
+        # --- 6. UPLOAD STEPS ---
+        print("6. Uploading steps (one by one)...")
         for s in steps_list:
             step_num = s['step']
             print(f"   --- Writing Step {step_num} ---")
             
             # 1. Select the step to edit (Page 57)
             inst.write(f':PROG:EDIT:STEP:SEL {step_num}')
+            time.sleep(0.1) # Delay
             
             # 2. Set DC Voltage (Page 58)
             inst.write(f":PROG:EDIT:STEP:VOLT {s['volt']}, IMMediate")
@@ -91,6 +96,7 @@ def upload_and_run_sequence(inst, slot, title, loops, current, steps_list):
             
             # 5. Set Output State (Page 63)
             inst.write(':PROG:EDIT:STEP:STAT ON, OFF, OFF')
+            time.sleep(0.1) # Delay
 
             # Check for errors
             err = inst.query('SYST:ERR?')
@@ -99,16 +105,16 @@ def upload_and_run_sequence(inst, slot, title, loops, current, steps_list):
                 print("   Stopping script.")
                 return
 
-        # --- 6. SAVE PROGRAM TO MEMORY ---
-        print("6. Saving program to device EEPROM...")
+        # --- 7. SAVE PROGRAM TO MEMORY ---
+        print("7. Saving program to device EEPROM...")
         inst.write(':PROG:SAVE')
         time.sleep(1.0) 
 
         print("\n--- PROGRAM UPLOAD COMPLETE ---")
         print("Check device screen: Title and Steps should be updated.")
 
-        # --- 7. RUN THE PROGRAM ---
-        print("7. Turning OUTPUT ON and RUNNING sequence...")
+        # --- 8. RUN THE PROGRAM ---
+        print("8. Turning OUTPUT ON and RUNNING sequence...")
         inst.write('OUTP 1')
         time.sleep(0.5)
         inst.write(':PROG:EXEC:STAT RUN')
