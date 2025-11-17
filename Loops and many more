@@ -1,111 +1,128 @@
 import pyvisa
 import time
 
-# ========= USER SETTINGS =========
+# ===================== USER SETTINGS =====================
 
-TARGET_RESOURCE = "USB0::0x0B3E::0x1012::EZ002642::INSTR"   # your VISA address
-PROGRAM_SLOT    = "1"                                      # "1" .. "16"
-PROGRAM_TITLE   = "ACC_D1_TEST"
-CURRENT_LIMIT_A = 5.0                                      # safe under 6 A OCP
+# Your VISA address
+TARGET_RESOURCE = "USB0::0x0B3E::0x1012::EZ002642::INSTR"
 
-# Sequence you want in the program
-# step numbers should be 1..N
+# Program number on the PBZ front panel ("1" .. "16")
+PROGRAM_NUMBER = "1"
+
+# Program title and loop count
+PROGRAM_TITLE = "ACC_D1_TEST"
+LOOP_COUNT = 1
+
+# Step pattern you want to upload  (step index, voltage [V], time [s])
 STEPS = [
-    {"step": 1, "volt": 0.0,  "time": 1.0},   # 0 V  for 1 s
-    {"step": 2, "volt": 12.0, "time": 0.1},   # 12 V for 0.1 s
-    {"step": 3, "volt": 0.0,  "time": 1.0},   # 0 V  for 1 s
-    {"step": 4, "volt": 13.0, "time": 20.0},  # 13 V for 20 s
-    {"step": 5, "volt": 0.0,  "time": 2.0},   # 0 V  for 2 s
+    {"step": 1, "volt": 0.0,  "time": 1.0},
+    {"step": 2, "volt": 12.0, "time": 0.1},
+    {"step": 3, "volt": 0.0,  "time": 1.0},
+    {"step": 4, "volt": 13.0, "time": 20.0},
+    {"step": 5, "volt": 0.0,  "time": 2.0},
 ]
 
-# ========= HELPERS =========
+# =========================================================
 
-def write_and_report(inst, cmd):
-    """Send a SCPI command and print SYST:ERR?"""
+def scpi_write(inst, cmd):
+    """Write a command and print SYST:ERR?"""
     inst.write(cmd)
-    time.sleep(0.03)
-    err = inst.query("SYST:ERR?")
+    try:
+        err = inst.query("SYST:ERR?")
+    except Exception as e:
+        err = f"EXC while querying SYST:ERR?: {e}"
     print(f"WROTE '{cmd}' -> {err.strip()}")
-    return err
+    return err.strip()
+
+def scpi_query(inst, cmd):
+    """Query and print reply + SYST:ERR?"""
+    try:
+        resp = inst.query(cmd)
+    except Exception as e:
+        resp = f"EXC query '{cmd}': {e}"
+        print(resp)
+        return resp
+    try:
+        err = inst.query("SYST:ERR?")
+        err = err.strip()
+    except Exception as e:
+        err = f"EXC SYST:ERR?: {e}"
+    print(f"QUERY '{cmd}' -> '{resp.strip()}', SYST:ERR? -> {err}")
+    return resp.strip()
 
 def main():
     rm = pyvisa.ResourceManager()
     inst = rm.open_resource(TARGET_RESOURCE)
+    inst.read_termination = "\n"
     inst.write_termination = "\n"
-    inst.read_termination  = "\n"
     inst.timeout = 5000
 
     try:
         print("IDN:", inst.query("*IDN?").strip())
 
-        # --- Go to remote, clear errors (no full reset so we don't break your setup memory) ---
+        # --- Reset / go to remote ---
         inst.write("*CLS")
-        inst.write("SYST:REM")
-        time.sleep(0.1)
-        print("SYST:ERR? ->", inst.query("SYST:ERR?").strip())
+        inst.write("ABOR")          # abort any running program
+        inst.write("SYST:REM")      # remote control
 
-        # --- Select program slot and set title ---
-        print("\n--- Selecting program and setting title ---")
-        write_and_report(inst, f'PROG:NAME "{PROGRAM_SLOT}"')
-        write_and_report(inst, f'PROG:EDIT:TITL "{PROGRAM_TITLE}"')
+        # --- Select program slot ---
+        print(f"\nSelecting program number '{PROGRAM_NUMBER}' ...")
+        scpi_write(inst, f'PROG:NAME "{PROGRAM_NUMBER}"')
 
-        # --- Set global mode/limits (optional, but usually what you want) ---
-        # CV mode & current limit
-        write_and_report(inst, "FUNC VOLT")                     # CV mode
-        write_and_report(inst, f"CURR {CURRENT_LIMIT_A}")       # current limit
+        # --- Set header: title, mode, polarity, loop ---
+        print("\nSetting basic program parameters ...")
+        scpi_write(inst, f'PROG:EDIT:TITL "{PROGRAM_TITLE}"')
+        scpi_write(inst, "PROG:EDIT:FUNC:MODE CV")        # CV mode
+        scpi_write(inst, "PROG:EDIT:FUNC:POL BIPolar")    # Bipolar
+        scpi_write(inst, f"PROG:EDIT:LOOP {LOOP_COUNT}")  # loop count
 
-        # --- Delete all existing steps ---
+        # --- Delete existing steps ---
         print("\n--- Deleting existing steps ---")
-        write_and_report(inst, "PROG:EDIT:DEL")
+        scpi_write(inst, "PROG:EDIT:DEL")
 
         # --- Add placeholder steps ---
         step_count = len(STEPS)
         print(f"\n--- Adding {step_count} placeholder steps ---")
-        write_and_report(inst, f"PROG:EDIT:ADD {step_count}")
+        scpi_write(inst, f"PROG:EDIT:ADD {step_count}")
 
         # Confirm count from instrument
-        cnt = inst.query("PROG:EDIT:COUN?").strip()
-        print("Device reports step count =", cnt)
+        scpi_query(inst, "PROG:EDIT:COUN?")
 
-        # --- Write each step ---
+        # --- Write each step values ---
         print("\n--- Writing step values ---")
-        for s in STEPS:
+        for s in sorted(STEPS, key=lambda x: x["step"]):
             n = s["step"]
             v = s["volt"]
             t = s["time"]
 
             print(f"\nWriting Step {n}: V={v}, T={t}")
+            # Select step
+            scpi_write(inst, f"PROG:EDIT:STEP:SEL {n}")
+            # DC voltage
+            scpi_write(inst, f"PROG:EDIT:STEP:VOLT {v}")
+            # Execution time
+            scpi_write(inst, f"PROG:EDIT:STEP:TIME {t}")
+            # Ensure output is ON in that step, trig out/in OFF
+            scpi_write(inst, "PROG:EDIT:STEP:STAT ON,OFF,OFF")
 
-            # 1) Select step n
-            write_and_report(inst, f"PROG:EDIT:STEP:SEL {n}")
+        # At this point the program is stored internally; there is
+        # no PROG:SAVE command in the manual, so nothing else to save.
 
-            # 2) Set DC voltage level (IMMediate by default)
-            write_and_report(inst, f"PROG:EDIT:STEP:VOLT {v}")
+        # OPTIONAL: run the program once to verify
+        print("\n--- (Optional) run program ---")
+        scpi_write(inst, "TRIG:PROG:SOUR IMM")   # immediate trigger
+        scpi_write(inst, "OUTP ON")             # turn output on
+        scpi_write(inst, "PROG:EXEC:STAT RUN")  # start the program
 
-            # 3) Set step time
-            write_and_report(inst, f"PROG:EDIT:STEP:TIME {t}")
-
-            # 4) Ensure output is ON in this step, no trig out/in
-            #    STATe {OUT_ON},{TRIG_OUT},{TRIG_IN}
-            write_and_report(inst, "PROG:EDIT:STEP:STAT ON,OFF,OFF")
-
-        # --- Done programming ---
-        print("\nProgramming finished.")
-
-        # If you want to *run* the program automatically, uncomment this block:
-        """
-        print("\n--- Starting program execution ---")
-        write_and_report(inst, "TRIG:PROG:SOUR IMM")   # run immediately when told
-        write_and_report(inst, "OUTP ON")              # turn output ON
-        write_and_report(inst, "PROG:EXEC:STAT RUN")   # start program
-        """
+        print("\nDone. Check the front panel:")
+        print("- Go to SEQUENCE -> Program -> PRG.", PROGRAM_NUMBER.zfill(2))
+        print("- You should see the title, number of steps, and each step's V/time updated.")
 
     finally:
         try:
             inst.close()
         except:
             pass
-        print("\nConnection closed.")
 
 if __name__ == "__main__":
     main()
