@@ -1,207 +1,111 @@
-# pbz_upload_sequence.py
-# Combined script: delete current steps, add placeholders, upload volt/time for each step, save and optionally run.
-# Requires pyvisa.
-
 import pyvisa
 import time
 
-# ---------- EDIT THESE ----------
-RESOURCE = "USB0::0x0B3E::0x1012::EZ002642::INSTR"   # your VISA resource
-PROGRAM_SLOT = "1"                                   # program slot to use
-RUN_AFTER_SAVE = False                               # set True to auto-run after saving
+# ========= USER SETTINGS =========
 
-# Steps to write (step indices should be 1..N contiguous)
+TARGET_RESOURCE = "USB0::0x0B3E::0x1012::EZ002642::INSTR"   # your VISA address
+PROGRAM_SLOT    = "1"                                      # "1" .. "16"
+PROGRAM_TITLE   = "ACC_D1_TEST"
+CURRENT_LIMIT_A = 5.0                                      # safe under 6 A OCP
+
+# Sequence you want in the program
+# step numbers should be 1..N
 STEPS = [
-    {"step": 1, "volt": 0.0,  "time": 1.0},
-    {"step": 2, "volt": 12.0, "time": 0.1},
-    {"step": 3, "volt": 0.0,  "time": 1.0},
-    {"step": 4, "volt": 13.0, "time": 20.0},
-    {"step": 5, "volt": 0.0,  "time": 2.0},
+    {"step": 1, "volt": 0.0,  "time": 1.0},   # 0 V  for 1 s
+    {"step": 2, "volt": 12.0, "time": 0.1},   # 12 V for 0.1 s
+    {"step": 3, "volt": 0.0,  "time": 1.0},   # 0 V  for 1 s
+    {"step": 4, "volt": 13.0, "time": 20.0},  # 13 V for 20 s
+    {"step": 5, "volt": 0.0,  "time": 2.0},   # 0 V  for 2 s
 ]
-# --------------------------------
 
-# Safety: ensure steps are contiguous and start at 1
-def validate_steps(steps):
-    if not steps:
-        raise ValueError("STEPS is empty")
-    steps_sorted = sorted(steps, key=lambda s: s["step"])
-    for i, s in enumerate(steps_sorted, start=1):
-        if s["step"] != i:
-            raise ValueError(f"Step indices must be contiguous starting at 1. Found {s['step']} at position {i}.")
-    return steps_sorted
+# ========= HELPERS =========
 
-def open_inst(resource, timeout_ms=5000):
-    rm = pyvisa.ResourceManager()
-    inst = rm.open_resource(resource)
-    inst.read_termination = "\n"
-    inst.write_termination = "\n"
-    inst.timeout = timeout_ms
-    return inst
-
-def syserr(inst, ctx=""):
-    try:
-        return inst.query("SYST:ERR?").strip()
-    except Exception as e:
-        return f"EXC querying SYST:ERR? after {ctx}: {e}"
-
-def write_and_report(inst, cmd, pause=0.12):
-    """Write a command, pause, and print/return SYST:ERR?"""
-    try:
-        inst.write(cmd)
-    except Exception as e:
-        print(f"EXC writing '{cmd}': {e}")
-        return f"EXC write {e}"
-    time.sleep(pause)
-    err = syserr(inst, cmd)
-    print(f"WROTE '{cmd}' -> {err}")
+def write_and_report(inst, cmd):
+    """Send a SCPI command and print SYST:ERR?"""
+    inst.write(cmd)
+    time.sleep(0.03)
+    err = inst.query("SYST:ERR?")
+    print(f"WROTE '{cmd}' -> {err.strip()}")
     return err
 
-def try_write_variants(inst, variants):
-    """Try several variant strings until one returns no error (or return last error)."""
-    last_err = None
-    for v in variants:
-        err = write_and_report(inst, v)
-        last_err = err
-        if isinstance(err, str) and (err.startswith('0,') or 'no error' in err.lower()):
-            return True, err
-    return False, last_err
-
 def main():
-    steps = validate_steps(STEPS)
-    step_count = len(steps)
-    inst = open_inst(RESOURCE)
+    rm = pyvisa.ResourceManager()
+    inst = rm.open_resource(TARGET_RESOURCE)
+    inst.write_termination = "\n"
+    inst.read_termination  = "\n"
+    inst.timeout = 5000
+
     try:
         print("IDN:", inst.query("*IDN?").strip())
 
-        # Basic prep
-        for c in ("*CLS", "ABORT", "SYST:REM"):
-            try:
-                inst.write(c)
-                time.sleep(0.05)
-            except Exception:
-                pass
+        # --- Go to remote, clear errors (no full reset so we don't break your setup memory) ---
+        inst.write("*CLS")
+        inst.write("SYST:REM")
+        time.sleep(0.1)
+        print("SYST:ERR? ->", inst.query("SYST:ERR?").strip())
 
-        # Select program slot
-        inst.write(f':PROG:NAME "{PROGRAM_SLOT}"')
-        time.sleep(0.08)
-        print("After selecting program slot ->", syserr(inst, "select program"))
+        # --- Select program slot and set title ---
+        print("\n--- Selecting program and setting title ---")
+        write_and_report(inst, f'PROG:NAME "{PROGRAM_SLOT}"')
+        write_and_report(inst, f'PROG:EDIT:TITL "{PROGRAM_TITLE}"')
 
-        # Enter program edit mode if supported (some firmwares accept this)
-        _ = write_and_report(inst, "PROG:EDIT ON", pause=0.06)   # harmless if not supported
+        # --- Set global mode/limits (optional, but usually what you want) ---
+        # CV mode & current limit
+        write_and_report(inst, "FUNC VOLT")                     # CV mode
+        write_and_report(inst, f"CURR {CURRENT_LIMIT_A}")       # current limit
 
-        # 1) Delete existing steps - try a couple forms
+        # --- Delete all existing steps ---
         print("\n--- Deleting existing steps ---")
-        delete_variants = [
-            ":PROGRAM:EDIT:DEL",      # user-supplied working form
-            ":PROG:EDIT:DEL",
-            ":PROG:EDIT:STEP:DEL",
-            ":PROG:EDIT:DEL ALL",
-        ]
-        ok, err = try_write_variants(inst, delete_variants)
-        if not ok:
-            print("Warning: delete attempts did not return 'No error' — continuing anyway. Last:", err)
+        write_and_report(inst, "PROG:EDIT:DEL")
 
-        # 2) Add the required number of placeholder steps
-        # Try with a simple single add command that takes a count, or loop inserting
-        print("\n--- Adding placeholder steps ---")
-        # Try a single ADD <n> variant
-        add_variants = [
-            f":PROGRAM:EDIT:ADD {step_count}",
-            f":PROG:EDIT:ADD {step_count}",
-            f":PROG:EDIT:STEP:ADD {step_count}",
-            f":PROG:EDIT:STEP:INS {step_count}",
-            f":PROG:EDIT:STEP:COUN {step_count}"
-        ]
-        ok, last = try_write_variants(inst, add_variants)
-        if not ok:
-            # fallback: add steps one-by-one (try a couple of single-add forms)
-            print("Single-add variants failed; trying incremental add/ins forms for each step.")
-            single_add_forms = ["PROG:EDIT:STEP:INS", "PROG:EDIT:STEP:ADD", "PROG:STEP:INS", "PROG:STEP:ADD"]
-            for i in range(step_count):
-                success = False
-                for form in single_add_forms:
-                    cmd = f"{form} {i+1}" if " " in form else f"{form} {i+1}"
-                    err = write_and_report(inst, cmd)
-                    if err and (err.startswith("0,") or "no error" in err.lower()):
-                        success = True
-                        break
-                if not success:
-                    # one final try: some firmwares accept the form with no index
-                    for form in single_add_forms:
-                        cmd = f"{form}"
-                        err = write_and_report(inst, cmd)
-                        if err and (err.startswith("0,") or "no error" in err.lower()):
-                            success = True
-                            break
-                if not success:
-                    print(f"WARNING: could not verify add for step {i+1}. Last ERR: {err}")
-            # continue anyway
+        # --- Add placeholder steps ---
+        step_count = len(STEPS)
+        print(f"\n--- Adding {step_count} placeholder steps ---")
+        write_and_report(inst, f"PROG:EDIT:ADD {step_count}")
 
-        # After add, check reported step count (best-effort)
-        # Try a few query variants
-        step_count_reported = None
-        for q in (":PROG:EDIT:COUN?", ":PROG:EDIT:COUNT?", ":PROG:EDIT:STEP:COUN?"):
-            try:
-                resp = inst.query(q).strip()
-                if resp:
-                    try:
-                        step_count_reported = int(resp.split(",")[0])
-                        break
-                    except Exception:
-                        pass
-            except Exception:
-                pass
-        print("Device reports step count =", step_count_reported)
+        # Confirm count from instrument
+        cnt = inst.query("PROG:EDIT:COUN?").strip()
+        print("Device reports step count =", cnt)
 
-        if step_count_reported is not None and step_count_reported < step_count:
-            print(f"WARNING: device reports fewer steps ({step_count_reported}) than requested ({step_count}). Aborting.")
-            return
-
-        # 3) Write values to each step (select-then-write pattern)
+        # --- Write each step ---
         print("\n--- Writing step values ---")
-        for s in steps:
+        for s in STEPS:
             n = s["step"]
             v = s["volt"]
             t = s["time"]
+
             print(f"\nWriting Step {n}: V={v}, T={t}")
 
-            # Select step (this is known-working command)
-            err = write_and_report(inst, f"PROG:EDIT:STEP:SEL {n}")
-            if not (err.startswith("0,") or "no error" in err.lower()):
-                # sometimes the instrument reports 0,"No error" even if syserr printed differently earlier,
-                # but if non-zero, still try proceeding, but warn.
-                print(f"Warning selecting step {n}: {err}")
+            # 1) Select step n
+            write_and_report(inst, f"PROG:EDIT:STEP:SEL {n}")
 
-            # Write voltage (may return -221 settings conflict for some step types)
-            v_err = write_and_report(inst, f"PROG:EDIT:STEP:VOLT {v}")
-            if not (v_err.startswith("0,") or "no error" in v_err.lower()):
-                print(f"NOTE: VOLT command returned: {v_err} (may indicate settings conflict or disallowed value).")
+            # 2) Set DC voltage level (IMMediate by default)
+            write_and_report(inst, f"PROG:EDIT:STEP:VOLT {v}")
 
-            # Write time
-            t_err = write_and_report(inst, f"PROG:EDIT:STEP:TIME {t}")
-            if not (t_err.startswith("0,") or "no error" in t_err.lower()):
-                print(f"ERROR writing TIME for step {n}: {t_err}")
-                print("Stopping script.")
-                return
+            # 3) Set step time
+            write_and_report(inst, f"PROG:EDIT:STEP:TIME {t}")
 
-        # 4) Save program
-        print("\n--- Saving program ---")
-        save_err = write_and_report(inst, ":PROG:SAVE")
-        if not (save_err.startswith("0,") or "no error" in save_err.lower()):
-            print("Warning: save returned:", save_err)
+            # 4) Ensure output is ON in this step, no trig out/in
+            #    STATe {OUT_ON},{TRIG_OUT},{TRIG_IN}
+            write_and_report(inst, "PROG:EDIT:STEP:STAT ON,OFF,OFF")
 
-        # 5) Optionally run program
-        if RUN_AFTER_SAVE:
-            print("\n--- Starting program ---")
-            write_and_report(inst, "OUTP 1")
-            write_and_report(inst, ":PROG:EXEC:STAT RUN")
+        # --- Done programming ---
+        print("\nProgramming finished.")
 
-        print("\nDone.")
+        # If you want to *run* the program automatically, uncomment this block:
+        """
+        print("\n--- Starting program execution ---")
+        write_and_report(inst, "TRIG:PROG:SOUR IMM")   # run immediately when told
+        write_and_report(inst, "OUTP ON")              # turn output ON
+        write_and_report(inst, "PROG:EXEC:STAT RUN")   # start program
+        """
+
     finally:
         try:
             inst.close()
-        except Exception:
+        except:
             pass
+        print("\nConnection closed.")
 
 if __name__ == "__main__":
     main()
