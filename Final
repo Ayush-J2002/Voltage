@@ -1,0 +1,190 @@
+#!/usr/bin/env python3
+# upload.py
+# Upload the named pattern (A1, A2, ...) to ACC / IGN / BATTERY as defined inside patterns.json.
+
+import json, pyvisa, time, sys
+from typing import Dict, List
+
+PATTERNS_FILE = "patterns.json"
+
+# default pattern (can be overridden by command-line arg)
+PATTERN_TO_USE = "A1"
+
+# Loop count for every program (set here)
+PROGRAM_LOOP_COUNT = 1
+
+# List of device configs (edit VISA addresses and slots here)
+TARGETS: Dict[str, Dict] = {
+    "BATTERY": {
+        "resource": "USB0::0x0B3E::0x1012::EZ002642::INSTR",
+        "program_slot": "1",
+        "run_after_upload": False
+    },
+    "IGN": {
+        "resource": "USB0::0x0B3E::0x1012::EZ002641::INSTR",
+        "program_slot": "1",
+        "run_after_upload": False
+    },
+    "ACC": {
+        "resource": "USB0::0x0B3E::0x1012::EZ002640::INSTR",
+        "program_slot": "1",
+        "run_after_upload": False
+    }
+}
+
+# timing/config
+PAUSE_SHORT = 0.06
+PAUSE_MED = 0.12
+VISA_TIMEOUT_MS = 5000
+
+# ---------- helpers ----------
+def load_patterns(fn: str) -> Dict:
+    with open(fn, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+def open_inst(resource: str):
+    rm = pyvisa.ResourceManager()
+    inst = rm.open_resource(resource)
+    inst.read_termination = "\n"
+    inst.write_termination = "\n"
+    inst.timeout = VISA_TIMEOUT_MS
+    return inst
+
+def syserr(inst, ctx=""):
+    try:
+        return inst.query("SYST:ERR?").strip()
+    except Exception as e:
+        return f"EXC SYST:ERR? ({ctx}): {e}"
+
+def write_and_report(inst, cmd: str, pause: float = PAUSE_MED):
+    try:
+        inst.write(cmd)
+    except Exception as e:
+        print(f"EXC writing '{cmd}': {e}")
+        return f"EXC write {e}"
+    time.sleep(pause)
+    err = syserr(inst, cmd)
+    print(f"WROTE '{cmd}' -> {err}")
+    return err
+
+def validate_steps(steps: List[Dict]):
+    if not steps:
+        raise ValueError("Empty steps list")
+    steps_sorted = sorted(steps, key=lambda s: s["step"])
+    for idx, s in enumerate(steps_sorted, start=1):
+        if s["step"] != idx:
+            raise ValueError(f"Steps must be contiguous starting at 1. Found {s['step']} at position {idx}.")
+    return steps_sorted
+
+# ---------- main upload function ----------
+def upload_subpattern_to_device(device_name: str, device_cfg: Dict, subpattern: Dict):
+    resource = device_cfg["resource"]
+    slot = device_cfg["program_slot"]
+    run_after = device_cfg.get("run_after_upload", False)
+
+    title = subpattern.get("title", device_name)
+    steps = validate_steps(subpattern.get("steps", []))
+    loop = PROGRAM_LOOP_COUNT
+
+    print("\n" + "="*60)
+    print(f"Uploading pattern -> device: {device_name}, resource: {resource}, slot: {slot}")
+    print(f"Title: {title}, steps: {len(steps)}, loop: {loop}")
+    print("="*60)
+
+    inst = None
+    try:
+        inst = open_inst(resource)
+        print("IDN:", inst.query("*IDN?").strip())
+
+        # safe prep
+        for c in ("*CLS", "ABOR", "SYST:REM"):
+            try:
+                inst.write(c); time.sleep(PAUSE_SHORT)
+            except Exception:
+                pass
+
+        # select program slot & header
+        write_and_report(inst, f'PROG:NAME "{slot}"')
+        write_and_report(inst, f'PROG:EDIT:TITL "{title}"')
+        write_and_report(inst, f'PROG:EDIT:LOOP {int(loop)}')
+        write_and_report(inst, "PROG:EDIT ON")
+
+        # delete existing steps and add placeholders
+        write_and_report(inst, "PROG:EDIT:DEL")
+        write_and_report(inst, f"PROG:EDIT:ADD {len(steps)}")
+
+        # write step fields
+        for s in steps:
+            n = s["step"]
+            v = s["volt"]
+            t = s["time"]
+            print(f"\nWriting step {n}: V={v}, T={t}")
+            sel_err = write_and_report(inst, f"PROG:EDIT:STEP:SEL {n}")
+            if not (sel_err.startswith("0,") or "no error" in sel_err.lower()):
+                print("Warning selecting step:", sel_err)
+            v_err = write_and_report(inst, f"PROG:EDIT:STEP:VOLT {v}")
+            if not (v_err.startswith("0,") or "no error" in v_err.lower()):
+                print("Note: VOLT returned:", v_err)
+            t_err = write_and_report(inst, f"PROG:EDIT:STEP:TIME {t}")
+            if not (t_err.startswith("0,") or "no error" in t_err.lower()):
+                print("ERROR: TIME write failed:", t_err)
+                return False
+            write_and_report(inst, "PROG:EDIT:STEP:STAT ON,OFF,OFF")
+
+        # save (best-effort)
+        save_err = write_and_report(inst, "PROG:SAVE")
+        if not (save_err.startswith("0,") or "no error" in save_err.lower()):
+            print("Save returned:", save_err)
+
+        # optionally run
+        if run_after:
+            write_and_report(inst, "OUTP ON")
+            write_and_report(inst, "PROG:EXEC:STAT RUN")
+
+        print("Upload successful for", device_name)
+        return True
+
+    except Exception as e:
+        print("Exception for device", device_name, ":", e)
+        return False
+
+    finally:
+        if inst:
+            try: inst.close()
+            except: pass
+
+# ---------- program entry ----------
+def main():
+    global PATTERN_TO_USE
+    # CLI pattern override
+    if len(sys.argv) > 1:
+        PATTERN_TO_USE = sys.argv[1].strip()
+
+    print("Pattern to use:", PATTERN_TO_USE)
+    try:
+        patterns = load_patterns = json.load(open(PATTERNS_FILE))
+    except Exception as e:
+        print("Error loading patterns.json:", e); return
+
+    if PATTERN_TO_USE not in patterns:
+        print(f"Pattern '{PATTERN_TO_USE}' not found. Available:", list(patterns.keys()))
+        return
+
+    top_pattern = patterns[PATTERN_TO_USE]
+
+    overall_ok = True
+    # For each device key in TARGETS, find same key under top_pattern
+    for dev_key, dev_cfg in TARGETS.items():
+        if dev_key not in top_pattern:
+            print(f"WARNING: Pattern '{PATTERN_TO_USE}' does not contain a '{dev_key}' block. Skipping {dev_key}.")
+            overall_ok = False
+            continue
+        subpattern = top_pattern[dev_key]
+        ok = upload_subpattern_to_device(dev_key, dev_cfg, subpattern)
+        if not ok:
+            overall_ok = False
+
+    print("\nALL DONE. overall success =", overall_ok)
+
+if __name__ == "__main__":
+    main()
