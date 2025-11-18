@@ -1,67 +1,20 @@
-# multi_pbz_upload_and_run.py
-# Upload different step sequences to multiple PBZ instruments and put outputs ON.
-# Requires: pyvisa
+# upload_from_patterns.py
+import json, pyvisa, time
 
-import pyvisa
-import time
-from typing import List, Dict
+PATTERNS_FILE = "patterns.json"
+TARGETS_FILE = "targets.json"
 
-# -------------------- CONFIGURE YOUR DEVICES HERE --------------------
-# For each device, supply:
-# - resource: VISA address
-# - program: slot number as string (e.g., "1")
-# - title: program title (string)
-# - loop: loop count (int)
-# - steps: list of {"step": n, "volt": V, "time": seconds}
-# - run_after_upload: whether to turn output ON and RUN
-TARGETS: Dict[str, Dict] = {
-    "ign_battery": {
-        "resource": "USB0::0x0B3E::0x1012::EZ002642::INSTR",
-        "program": "1",
-        "title": "IGN_BATT",
-        "loop": 1,
-        "steps": [
-            {"step": 1, "volt": 0.0,  "time": 1.0},
-            {"step": 2, "volt": 11.5, "time": 0.5},
-            {"step": 3, "volt": 0.0,  "time": 1.0},
-        ],
-        "run_after_upload": False,
-    },
-    "acc_module": {
-        "resource": "USB0::0x0B3E::0x2020::EZ00ABCD::INSTR",
-        "program": "2",
-        "title": "ACC_TEST",
-        "loop": 1,
-        "steps": [
-            {"step": 1, "volt": 0.0,  "time": 1.0},
-            {"step": 2, "volt": 12.0, "time": 0.1},
-            {"step": 3, "volt": 0.0,  "time": 1.0},
-            {"step": 4, "volt": 13.0, "time": 20.0},
-            {"step": 5, "volt": 0.0,  "time": 2.0},
-        ],
-        "run_after_upload": False,
-    },
-    "other_target": {
-        "resource": "USB0::0x0B3E::0x3030::EZ00EF01::INSTR",
-        "program": "3",
-        "title": "OTHER_SEQ",
-        "loop": 2,
-        "steps": [
-            {"step": 1, "volt": 5.0, "time": 2.0},
-            {"step": 2, "volt": 0.0, "time": 1.0},
-        ],
-        "run_after_upload": False,
-    },
-}
-# --------------------------------------------------------------------
+# ------------------------------------------------------
+# LOOP VALUE MOVED HERE (removed from JSON)
+# Change this = it applies to ALL devices
+PROGRAM_LOOP_COUNT = 1
+# ------------------------------------------------------
 
-# Global settings
-PAUSE_SHORT = 0.08
+PAUSE_SHORT = 0.06
 PAUSE_MED = 0.12
 VISA_TIMEOUT_MS = 5000
 
-# -------------------- Helper functions --------------------
-def open_inst(resource: str):
+def open_inst(resource):
     rm = pyvisa.ResourceManager()
     inst = rm.open_resource(resource)
     inst.read_termination = "\n"
@@ -73,9 +26,9 @@ def syserr(inst, ctx=""):
     try:
         return inst.query("SYST:ERR?").strip()
     except Exception as e:
-        return f"EXC SYST:ERR? after {ctx}: {e}"
+        return f"EXC SYST:ERR? ({ctx}): {e}"
 
-def write_and_report(inst, cmd: str, pause: float = PAUSE_MED):
+def write_and_report(inst, cmd, pause=PAUSE_MED):
     try:
         inst.write(cmd)
     except Exception as e:
@@ -86,163 +39,88 @@ def write_and_report(inst, cmd: str, pause: float = PAUSE_MED):
     print(f"WROTE '{cmd}' -> {err}")
     return err
 
-def query_and_report(inst, cmd: str):
-    try:
-        resp = inst.query(cmd).strip()
-    except Exception as e:
-        resp = f"EXC query '{cmd}': {e}"
-    try:
-        err = inst.query("SYST:ERR?").strip()
-    except Exception as e:
-        err = f"EXC SYST:ERR? after {cmd}: {e}"
-    print(f"QUERY '{cmd}' -> '{resp}', SYST:ERR? -> {err}")
-    return resp, err
-
-def validate_steps(steps: List[Dict]):
-    if not steps:
-        raise ValueError("No steps defined.")
+def validate_steps(steps):
     steps_sorted = sorted(steps, key=lambda s: s["step"])
-    for idx, s in enumerate(steps_sorted, start=1):
-        if s["step"] != idx:
-            raise ValueError(f"Steps must be contiguous starting at 1. Found step {s['step']} at position {idx}.")
+    for i, s in enumerate(steps_sorted, start=1):
+        if s["step"] != i:
+            raise ValueError(f"Steps must be contiguous starting at 1. Found step={s['step']} at index={i}")
     return steps_sorted
 
-# -------------------- Main per-device flow --------------------
-def upload_program_to_device(inst_resource: str, program_slot: str, title: str, loop_count: int, steps: List[Dict], run_after: bool):
-    print("\n" + "=" * 60)
-    print(f"Processing device {inst_resource} -> PRG {program_slot}")
-    print("=" * 60)
+def upload_pattern(device_cfg, pattern):
+    res = device_cfg["resource"]
+    slot = device_cfg["program_slot"]
+    run_after = device_cfg.get("run_after_upload", False)
+
+    title = pattern["title"]
+    steps = validate_steps(pattern["steps"])
+    loop = PROGRAM_LOOP_COUNT   # <-- LOOP COMES FROM SCRIPT ONLY
+
+    print("\n====================================================")
+    print(f"Uploading pattern '{title}' to device {res}")
+    print("====================================================")
+
     inst = None
     try:
-        inst = open_inst(inst_resource)
-        idn = inst.query("*IDN?").strip()
-        print("IDN:", idn)
+        inst = open_inst(res)
+        print("IDN:", inst.query("*IDN?").strip())
+        inst.write("*CLS"); inst.write("ABOR"); inst.write("SYST:REM")
 
-        # Basic prep
-        for c in ("*CLS", "ABOR", "SYST:REM"):
-            try:
-                inst.write(c)
-                time.sleep(PAUSE_SHORT)
-            except Exception:
-                pass
-
-        # Select program slot
-        write_and_report(inst, f'PROG:NAME "{program_slot}"')
-
-        # Optional: set program header (title & loop)
+        write_and_report(inst, f'PROG:NAME "{slot}"')
         write_and_report(inst, f'PROG:EDIT:TITL "{title}"')
-        write_and_report(inst, f"PROG:EDIT:LOOP {int(loop_count)}")
-
-        # Enter edit mode attempt (harmless if not supported)
+        write_and_report(inst, f'PROG:EDIT:LOOP {loop}')
         write_and_report(inst, "PROG:EDIT ON")
 
-        # Clear steps
-        print("\nDeleting existing steps...")
-        write_and_report(inst, "PROGRAM:EDIT:DEL")  # your working form
-        time.sleep(PAUSE_SHORT)
+        # delete and add fresh steps
+        write_and_report(inst, "PROG:EDIT:DEL")
+        write_and_report(inst, f"PROG:EDIT:ADD {len(steps)}")
 
-        # Add placeholders
-        step_count = len(steps)
-        print(f"\nAdding {step_count} placeholder steps...")
-        write_and_report(inst, f"PROGRAM:EDIT:ADD {step_count}")
-        time.sleep(PAUSE_SHORT)
+        # write steps
+        for s in steps:
+            n = s["step"]; v = s["volt"]; t = s["time"]
+            print(f"\n--- Step {n}: V={v}, T={t} ---")
+            write_and_report(inst, f"PROG:EDIT:STEP:SEL {n}")
+            write_and_report(inst, f"PROG:EDIT:STEP:VOLT {v}")
+            write_and_report(inst, f"PROG:EDIT:STEP:TIME {t}")
 
-        # Confirm
-        # PROG:EDIT:COUN? or :PROG:EDIT:COUNT?
-        try:
-            resp = inst.query(":PROG:EDIT:COUN?").strip()
-            print("Device reports step count (PROG:EDIT:COUN?) ->", resp)
-        except Exception:
-            try:
-                resp = inst.query(":PROG:EDIT:COUNT?").strip()
-                print("Device reports step count (PROG:EDIT:COUNT?) ->", resp)
-            except Exception:
-                print("Couldn't query step count; continue anyway.")
+        # save
+        write_and_report(inst, "PROG:SAVE")
 
-        # Validate step indices
-        steps_sorted = validate_steps(steps)
-
-        # Write volt/time for each step
-        print("\nWriting step values:")
-        for s in steps_sorted:
-            n = s["step"]
-            v = s["volt"]
-            t = s["time"]
-            print(f"\n-- Step {n}: V={v}, T={t} --")
-            # Select step (known-working)
-            sel_err = write_and_report(inst, f"PROG:EDIT:STEP:SEL {n}")
-            if not (sel_err.startswith("0,") or "no error" in sel_err.lower()):
-                # warn but try writing anyway
-                print(f"Warning selecting step {n} -> {sel_err}")
-
-            # Write voltage
-            v_err = write_and_report(inst, f"PROG:EDIT:STEP:VOLT {v}")
-            if not (v_err.startswith("0,") or "no error" in v_err.lower()):
-                print(f"Note: VOLT returned {v_err}. This may indicate step type or value conflict.")
-
-            # Write time
-            t_err = write_and_report(inst, f"PROG:EDIT:STEP:TIME {t}")
-            if not (t_err.startswith("0,") or "no error" in t_err.lower()):
-                print(f"ERROR: TIME write for step {n} returned {t_err}. Aborting upload to this device.")
-                return False
-
-            # Optional: ensure step status (output ON, trig OUT OFF, trig IN OFF)
-            write_and_report(inst, "PROG:EDIT:STEP:STAT ON,OFF,OFF")
-
-        # Save (many firmwares use PROG:SAVE or PROG:EDIT:SAVE)
-        print("\nSaving program...")
-        save_err = write_and_report(inst, "PROG:SAVE")
-        if not (save_err.startswith("0,") or "no error" in save_err.lower()):
-            print("Warning: Save reported:", save_err)
-
-        # Run if requested
+        # run program
         if run_after:
-            print("\nStarting program on device...")
             write_and_report(inst, "OUTP ON")
             write_and_report(inst, "PROG:EXEC:STAT RUN")
 
-        print("\nUpload complete for device:", inst_resource)
+        print(f"Upload DONE for {res}")
         return True
 
     except Exception as e:
-        print("EXCEPTION during device update:", e)
+        print("Error:", e)
         return False
 
     finally:
-        try:
-            if inst:
-                inst.close()
-        except Exception:
-            pass
+        if inst:
+            try: inst.close()
+            except: pass
 
-# -------------------- Driver --------------------
 def main():
-    overall_success = True
-    # Loop through targets sequentially (one instrument at a time)
-    for name, cfg in TARGETS.items():
-        try:
-            ok = upload_program_to_device(
-                inst_resource=cfg["resource"],
-                program_slot=cfg["program"],
-                title=cfg["title"],
-                loop_count=cfg.get("loop", 1),
-                steps=cfg["steps"],
-                run_after=cfg.get("run_after_upload", False),
-            )
-            if not ok:
-                overall_success = False
-                print(f"Device '{name}' failed to update.")
-            else:
-                print(f"Device '{name}' updated successfully.")
-        except Exception as e:
-            overall_success = False
-            print(f"Unhandled error for '{name}': {e}")
+    patterns = json.load(open(PATTERNS_FILE))
+    targets = json.load(open(TARGETS_FILE))
 
-    print("\nAll done. overall_success =", overall_success)
-    if overall_success:
-        print("All devices updated successfully.")
-    else:
-        print("One or more devices reported problems. Check the printed SYST:ERR? lines above.")
+    success = True
+    for dev_name, dev_cfg in targets.items():
+        pattern_name = dev_cfg["pattern"]
+
+        if pattern_name not in patterns:
+            print(f"ERROR: Pattern '{pattern_name}' not defined.")
+            success = False
+            continue
+
+        ok = upload_pattern(dev_cfg, patterns[pattern_name])
+        if not ok:
+            success = False
+            print(f"Device {dev_name} FAILED.")
+
+    print("\nAll done! Overall:", success)
 
 if __name__ == "__main__":
     main()
