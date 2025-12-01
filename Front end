@@ -1,0 +1,286 @@
+import json
+import tkinter as tk
+from tkinter import ttk, messagebox, filedialog
+from pathlib import Path
+from copy import deepcopy
+
+# ---------------- Configuration ---------------- #
+
+# JSON file path (default: patterns.json in same folder as script)
+SCRIPT_DIR = Path(__file__).resolve().parent
+DEFAULT_JSON_PATH = SCRIPT_DIR / "patterns.json"
+
+# ------------------------------------------------ #
+
+class PatternEditorApp(tk.Tk):
+    def __init__(self, json_path: Path):
+        super().__init__()
+        self.title("Power Pattern Editor")
+        self.geometry("700x500")
+
+        self.json_path = json_path
+
+        # Data: original (for reset) and working copy (for edits)
+        self.original_patterns = {}
+        self.patterns = {}
+
+        # Current selection
+        self.current_pattern_name = None
+        self.current_channel_name = None
+
+        # GUI widgets
+        self.pattern_var = tk.StringVar()
+        self.channel_var = tk.StringVar()
+        self.status_var = tk.StringVar(value="Load patterns.json to begin.")
+
+        # For dynamic step entries
+        self.step_entries = []  # list of (step_label, volt_entry, time_entry)
+
+        self._build_ui()
+        self._load_patterns()
+
+    # ---------- UI layout ---------- #
+    def _build_ui(self):
+        # Top frame: pattern + channel + buttons
+        top_frame = ttk.Frame(self)
+        top_frame.pack(fill="x", padx=10, pady=10)
+
+        # Pattern selector
+        ttk.Label(top_frame, text="Pattern:").grid(row=0, column=0, sticky="w", padx=(0, 5))
+        self.pattern_combo = ttk.Combobox(
+            top_frame, textvariable=self.pattern_var, state="readonly", width=15
+        )
+        self.pattern_combo.grid(row=0, column=1, sticky="w")
+        self.pattern_combo.bind("<<ComboboxSelected>>", self._on_pattern_change)
+
+        # Channel selector
+        ttk.Label(top_frame, text="Channel:").grid(row=0, column=2, sticky="w", padx=(15, 5))
+        self.channel_combo = ttk.Combobox(
+            top_frame, textvariable=self.channel_var, state="readonly", width=15
+        )
+        self.channel_combo.grid(row=0, column=3, sticky="w")
+        self.channel_combo.bind("<<ComboboxSelected>>", self._on_channel_change)
+
+        # Buttons
+        button_frame = ttk.Frame(top_frame)
+        button_frame.grid(row=0, column=4, sticky="e", padx=(20, 0))
+
+        self.reset_btn = ttk.Button(button_frame, text="Reset Channel", command=self.reset_channel)
+        self.reset_btn.grid(row=0, column=0, padx=(0, 5))
+
+        self.save_btn = ttk.Button(button_frame, text="Save JSON", command=self.save_json)
+        self.save_btn.grid(row=0, column=1, padx=(0, 5))
+
+        self.open_btn = ttk.Button(button_frame, text="Open JSON...", command=self.open_json)
+        self.open_btn.grid(row=0, column=2)
+
+        # Status label
+        status_label = ttk.Label(self, textvariable=self.status_var, foreground="#555")
+        status_label.pack(fill="x", padx=10)
+
+        # Steps frame (table-like)
+        steps_frame = ttk.LabelFrame(self, text="Steps")
+        steps_frame.pack(fill="both", expand=True, padx=10, pady=10)
+
+        # Header row
+        header = ttk.Frame(steps_frame)
+        header.pack(fill="x", padx=5, pady=(5, 2))
+        ttk.Label(header, text="Step", width=8).grid(row=0, column=0, sticky="w")
+        ttk.Label(header, text="Voltage (V)", width=15).grid(row=0, column=1, sticky="w")
+        ttk.Label(header, text="Time (s)", width=15).grid(row=0, column=2, sticky="w")
+
+        # Scrollable area for rows
+        self.steps_canvas = tk.Canvas(steps_frame, borderwidth=0, highlightthickness=0)
+        self.steps_inner = ttk.Frame(self.steps_canvas)
+        self.scrollbar = ttk.Scrollbar(steps_frame, orient="vertical", command=self.steps_canvas.yview)
+        self.steps_canvas.configure(yscrollcommand=self.scrollbar.set)
+
+        self.scrollbar.pack(side="right", fill="y")
+        self.steps_canvas.pack(side="left", fill="both", expand=True)
+
+        self.steps_canvas.create_window((0, 0), window=self.steps_inner, anchor="nw")
+        self.steps_inner.bind("<Configure>", lambda e: self.steps_canvas.configure(scrollregion=self.steps_canvas.bbox("all")))
+
+    # ---------- Data loading/saving ---------- #
+    def _load_patterns(self):
+        try:
+            with open(self.json_path, "r", encoding="utf-8") as f:
+                data = json.load(f)
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to load {self.json_path}:\n{e}")
+            self.status_var.set(f"Failed to load JSON: {e}")
+            return
+
+        self.original_patterns = deepcopy(data)
+        self.patterns = deepcopy(data)
+
+        pattern_names = sorted(self.patterns.keys())
+        if not pattern_names:
+            self.status_var.set("patterns.json is empty.")
+            return
+
+        self.pattern_combo["values"] = pattern_names
+        self.pattern_var.set(pattern_names[0])
+        self.current_pattern_name = pattern_names[0]
+        self._populate_channel_combo()
+        self.status_var.set(f"Loaded {self.json_path.name}. Select pattern and channel to edit.")
+
+    def save_json(self):
+        # Overwrite current file after confirmation
+        if not self.patterns:
+            messagebox.showwarning("Warning", "No patterns to save.")
+            return
+
+        answer = messagebox.askyesno(
+            "Save JSON",
+            f"Overwrite file:\n{self.json_path} ?"
+        )
+        if not answer:
+            return
+
+        try:
+            with open(self.json_path, "w", encoding="utf-8") as f:
+                json.dump(self.patterns, f, indent=2)
+            self.status_var.set(f"Saved changes to {self.json_path}.")
+        except Exception as e:
+            messagebox.showerror("Error", f"Failed to save JSON:\n{e}")
+            self.status_var.set(f"Error saving JSON: {e}")
+
+    def open_json(self):
+        path = filedialog.askopenfilename(
+            title="Open patterns.json",
+            filetypes=[("JSON files", "*.json"), ("All files", "*.*")]
+        )
+        if not path:
+            return
+        self.json_path = Path(path)
+        self._load_patterns()
+
+    # ---------- Selection changes ---------- #
+    def _on_pattern_change(self, event=None):
+        self.current_pattern_name = self.pattern_var.get()
+        self._populate_channel_combo()
+
+    def _populate_channel_combo(self):
+        self.step_entries.clear()
+        for widget in self.steps_inner.winfo_children():
+            widget.destroy()
+
+        pat = self.patterns.get(self.current_pattern_name, {})
+        channels = sorted(pat.keys())
+        self.channel_combo["values"] = channels
+
+        if channels:
+            self.channel_var.set(channels[0])
+            self.current_channel_name = channels[0]
+            self._render_steps()
+        else:
+            self.channel_var.set("")
+            self.current_channel_name = None
+            self.status_var.set(f"Pattern '{self.current_pattern_name}' has no channels.")
+
+    def _on_channel_change(self, event=None):
+        self.current_channel_name = self.channel_var.get()
+        self._render_steps()
+
+    # ---------- Steps table ---------- #
+    def _render_steps(self):
+        # clear current rows
+        self.step_entries.clear()
+        for widget in self.steps_inner.winfo_children():
+            widget.destroy()
+
+        if not self.current_pattern_name or not self.current_channel_name:
+            return
+
+        chan = self.patterns.get(self.current_pattern_name, {}).get(self.current_channel_name)
+        if not chan:
+            self.status_var.set(f"No data for channel '{self.current_channel_name}' in pattern '{self.current_pattern_name}'.")
+            return
+
+        steps = chan.get("steps", [])
+        for row_idx, step_obj in enumerate(steps):
+            step_no = step_obj.get("step", row_idx + 1)
+            volt = step_obj.get("volt", 0.0)
+            time_val = step_obj.get("time", 0.0)
+
+            # Step number (label)
+            lbl = ttk.Label(self.steps_inner, text=str(step_no), width=8)
+            lbl.grid(row=row_idx, column=0, sticky="w", padx=5, pady=2)
+
+            # Voltage entry
+            volt_var = tk.StringVar(value=str(volt))
+            volt_entry = ttk.Entry(self.steps_inner, textvariable=volt_var, width=12)
+            volt_entry.grid(row=row_idx, column=1, sticky="w", padx=5, pady=2)
+
+            # Time entry
+            time_var = tk.StringVar(value=str(time_val))
+            time_entry = ttk.Entry(self.steps_inner, textvariable=time_var, width=12)
+            time_entry.grid(row=row_idx, column=2, sticky="w", padx=5, pady=2)
+
+            self.step_entries.append((step_no, volt_var, time_var))
+
+        self.status_var.set(f"Editing pattern '{self.current_pattern_name}', channel '{self.current_channel_name}'.")
+        # Whenever we change pattern/channel, sync entries to data
+        self._sync_entries_to_data()
+
+        # Bind focus-out events once
+        for (_, volt_var, time_var) in self.step_entries:
+            volt_var.trace_add("write", self._on_step_edited)
+            time_var.trace_add("write", self._on_step_edited)
+
+    def _on_step_edited(self, *args):
+        # Update self.patterns from current entries (so unsaved edits exist in memory)
+        self._sync_entries_to_data()
+
+    def _sync_entries_to_data(self):
+        if not (self.current_pattern_name and self.current_channel_name):
+            return
+        chan = self.patterns[self.current_pattern_name][self.current_channel_name]
+        steps = chan.get("steps", [])
+
+        for idx, (step_no, volt_var, time_var) in enumerate(self.step_entries):
+            if idx >= len(steps):
+                continue
+            # Parse volt / time, fall back to 0.0 on error
+            try:
+                v = float(volt_var.get())
+            except ValueError:
+                v = 0.0
+            try:
+                t = float(time_var.get())
+            except ValueError:
+                t = 0.0
+            steps[idx]["step"] = step_no
+            steps[idx]["volt"] = v
+            steps[idx]["time"] = t
+
+    # ---------- Reset logic ---------- #
+    def reset_channel(self):
+        if not (self.current_pattern_name and self.current_channel_name):
+            return
+
+        answer = messagebox.askyesno(
+            "Reset Channel",
+            f"Reset channel '{self.current_channel_name}' in pattern '{self.current_pattern_name}' to defaults?"
+        )
+        if not answer:
+            return
+
+        try:
+            self.patterns[self.current_pattern_name][self.current_channel_name] = deepcopy(
+                self.original_patterns[self.current_pattern_name][self.current_channel_name]
+            )
+        except KeyError:
+            messagebox.showerror("Error", "No original data to reset from.")
+            return
+
+        self._render_steps()
+        self.status_var.set(
+            f"Channel '{self.current_channel_name}' in pattern '{self.current_pattern_name}' reset to defaults."
+        )
+
+
+if __name__ == "__main__":
+    app = PatternEditorApp(DEFAULT_JSON_PATH)
+    app.mainloop()
