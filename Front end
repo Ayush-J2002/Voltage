@@ -1,95 +1,262 @@
 import json
+import threading
 import tkinter as tk
 from tkinter import ttk, messagebox, filedialog
 from pathlib import Path
 from copy import deepcopy
 
+import pyvisa
+
 # ---------------- Configuration ---------------- #
 
-# JSON file path (default: patterns.json in same folder as script)
 SCRIPT_DIR = Path(__file__).resolve().parent
 DEFAULT_JSON_PATH = SCRIPT_DIR / "patterns.json"
 
-# ------------------------------------------------ #
+# VISA targets: fill in your actual USB addresses
+TARGETS = {
+    "BATTERY": {
+        "resource": "USB0::0x0B3E::0x1012::EZ002642::INSTR",
+        "program_slot": "1",
+    },
+    "IGN": {
+        "resource": "USB0::0x0B3E::0x1012::EZ002641::INSTR",
+        "program_slot": "1",
+    },
+    "ACC": {
+        "resource": "USB0::0x0B3E::0x1012::EZ002640::INSTR",
+        "program_slot": "1",
+    },
+}
+
+PROGRAM_LOOP_COUNT = 1          # program loop count for all channels
+VISA_TIMEOUT_MS = 5000
+PAUSE_SHORT = 0.06
+PAUSE_MED = 0.12
+
+# ---------------- VISA / SCPI helpers ---------------- #
+
+def open_inst(resource: str):
+    rm = pyvisa.ResourceManager()
+    inst = rm.open_resource(resource)
+    inst.read_termination = "\n"
+    inst.write_termination = "\n"
+    inst.timeout = VISA_TIMEOUT_MS
+    return inst
+
+def syserr(inst, ctx=""):
+    try:
+        return inst.query("SYST:ERR?").strip()
+    except Exception as e:
+        return f"EXC SYST:ERR? ({ctx}): {e}"
+
+def write_and_report(inst, cmd: str, pause: float = PAUSE_MED):
+    try:
+        inst.write(cmd)
+    except Exception as e:
+        print(f"EXC writing '{cmd}': {e}")
+        return f"EXC write {e}"
+    import time as _time
+    _time.sleep(pause)
+    err = syserr(inst, cmd)
+    print(f"WROTE '{cmd}' -> {err}")
+    return err
+
+def validate_steps(steps):
+    if not steps:
+        raise ValueError("Empty steps list")
+    ss = sorted(steps, key=lambda s: s["step"])
+    for i, s in enumerate(ss, start=1):
+        if s["step"] != i:
+            raise ValueError(f"Steps must be 1..N contiguous. Found step={s['step']} at position {i}.")
+    return ss
+
+def program_device_for_subpattern(device_name: str, dev_cfg: dict, subpattern: dict):
+    """
+    Uploads one channel (BATTERY / IGN / ACC) of the selected pattern to one PBZ.
+    Handles:
+      - DC volt / time
+      - optional DC ramp (dc_ramp_start)
+      - optional AC sine (ac_amp, ac_freq) with amplitude sweep start=stop=ac_amp
+    """
+    resource = dev_cfg["resource"]
+    slot = dev_cfg["program_slot"]
+    title = subpattern.get("title", device_name)
+    steps = validate_steps(subpattern.get("steps", []))
+    loop = PROGRAM_LOOP_COUNT
+
+    print("\n" + "=" * 60)
+    print(f"Device {device_name} ({resource}), slot {slot}, title '{title}'")
+    print("=" * 60)
+
+    inst = None
+    try:
+        inst = open_inst(resource)
+        idn = inst.query("*IDN?").strip()
+        print("IDN:", idn)
+
+        # basic prep
+        for c in ("*CLS", "ABOR", "SYST:REM"):
+            try:
+                inst.write(c)
+            except Exception:
+                pass
+
+        # select program slot and header
+        write_and_report(inst, f'PROG:NAME "{slot}"')
+        write_and_report(inst, f'PROG:EDIT:TITL "{title}"')
+        write_and_report(inst, f'PROG:EDIT:LOOP {int(loop)}')
+        write_and_report(inst, "PROG:EDIT ON")
+
+        # delete existing steps and add placeholders
+        write_and_report(inst, "PROG:EDIT:DEL")
+        write_and_report(inst, f"PROG:EDIT:ADD {len(steps)}")
+
+        # write each step
+        for s in steps:
+            n = s["step"]
+            v = float(s.get("volt", 0.0))
+            t = float(s.get("time", 0.0))
+            ramp_start = s.get("dc_ramp_start", None)
+            ac_amp = s.get("ac_amp", None)
+            ac_freq = s.get("ac_freq", None)
+
+            print(f"\nStep {n}: V={v}, T={t}, ramp_start={ramp_start}, ac_amp={ac_amp}, ac_freq={ac_freq}")
+            write_and_report(inst, f"PROG:EDIT:STEP:SEL {n}")
+
+            # --- DC / DC RAMP ---
+            if ramp_start is not None:
+                # DC RAMP: ON, start=ramp_start, stop=v
+                write_and_report(inst, f"PROG:EDIT:STEP:VOLT {v},RAMP")
+                write_and_report(inst, f"PROG:EDIT:STEP:VOLT:RAMP {float(ramp_start)}")
+            else:
+                # Simple DC
+                write_and_report(inst, f"PROG:EDIT:STEP:VOLT {v}")
+
+            # --- AC / AMPL SWEEP ---
+            if ac_amp is not None:
+                amp = float(ac_amp)
+                write_and_report(inst, "PROG:EDIT:STEP:FUNC SIN")
+                write_and_report(inst, "PROG:EDIT:STEP:AC:STAT ON")
+                # amplitude sweep start = stop = ac_amp
+                write_and_report(inst, f"PROG:EDIT:STEP:VOLT:AC {amp},SWE")
+                write_and_report(inst, f"PROG:EDIT:STEP:VOLT:AC:SWE {amp}")
+                if ac_freq is not None:
+                    write_and_report(inst, f"PROG:EDIT:STEP:FREQ {float(ac_freq)},IMMediate")
+            else:
+                # AC off for this step
+                write_and_report(inst, "PROG:EDIT:STEP:AC:STAT OFF")
+
+            # --- Time ---
+            write_and_report(inst, f"PROG:EDIT:STEP:TIME {t}")
+            # ensure step status: output on, triggers off
+            write_and_report(inst, "PROG:EDIT:STEP:STAT ON,OFF,OFF")
+
+        # save and start program
+        write_and_report(inst, "PROG:SAVE")
+        write_and_report(inst, "OUTP ON")
+        write_and_report(inst, "PROG:EXEC:STAT RUN")
+
+        print(f"Device {device_name} programmed and running.")
+        return True
+
+    except Exception as e:
+        print(f"EXCEPTION on device {device_name}: {e}")
+        return False
+
+    finally:
+        if inst is not None:
+            try:
+                inst.close()
+            except Exception:
+                pass
+
+def run_pattern_on_all_devices(patterns: dict, pattern_name: str):
+    """
+    patterns: full patterns.json dict
+    pattern_name: e.g. 'A1', 'D1'
+    """
+    if pattern_name not in patterns:
+        raise ValueError(f"Pattern '{pattern_name}' not found in JSON.")
+
+    pat = patterns[pattern_name]
+    ok_all = True
+    for dev_name, dev_cfg in TARGETS.items():
+        if dev_name not in pat:
+            print(f"WARNING: pattern '{pattern_name}' has no block for device '{dev_name}', skipping.")
+            ok_all = False
+            continue
+        sub = pat[dev_name]
+        ok = program_device_for_subpattern(dev_name, dev_cfg, sub)
+        if not ok:
+            ok_all = False
+    return ok_all
+
+# ---------------- Tkinter App ---------------- #
 
 class PatternEditorApp(tk.Tk):
     def __init__(self, json_path: Path):
         super().__init__()
-        self.title("Power Pattern Editor")
-        self.geometry("700x500")
+        self.title("Power Pattern Editor + Runner")
+        self.geometry("720x520")
 
         self.json_path = json_path
-
-        # Data: original (for reset) and working copy (for edits)
         self.original_patterns = {}
         self.patterns = {}
 
-        # Current selection
         self.current_pattern_name = None
         self.current_channel_name = None
 
-        # GUI widgets
         self.pattern_var = tk.StringVar()
         self.channel_var = tk.StringVar()
         self.status_var = tk.StringVar(value="Load patterns.json to begin.")
 
-        # For dynamic step entries
-        self.step_entries = []  # list of (step_label, volt_entry, time_entry)
+        self.step_entries = []  # list of (step_no, volt_var, time_var)
 
         self._build_ui()
         self._load_patterns()
 
-    # ---------- UI layout ---------- #
+    # --- UI ---
     def _build_ui(self):
-        # Top frame: pattern + channel + buttons
-        top_frame = ttk.Frame(self)
-        top_frame.pack(fill="x", padx=10, pady=10)
+        top = ttk.Frame(self)
+        top.pack(fill="x", padx=10, pady=10)
 
-        # Pattern selector
-        ttk.Label(top_frame, text="Pattern:").grid(row=0, column=0, sticky="w", padx=(0, 5))
-        self.pattern_combo = ttk.Combobox(
-            top_frame, textvariable=self.pattern_var, state="readonly", width=15
-        )
+        ttk.Label(top, text="Pattern:").grid(row=0, column=0, sticky="w", padx=(0, 5))
+        self.pattern_combo = ttk.Combobox(top, textvariable=self.pattern_var, state="readonly", width=15)
         self.pattern_combo.grid(row=0, column=1, sticky="w")
         self.pattern_combo.bind("<<ComboboxSelected>>", self._on_pattern_change)
 
-        # Channel selector
-        ttk.Label(top_frame, text="Channel:").grid(row=0, column=2, sticky="w", padx=(15, 5))
-        self.channel_combo = ttk.Combobox(
-            top_frame, textvariable=self.channel_var, state="readonly", width=15
-        )
+        ttk.Label(top, text="Channel:").grid(row=0, column=2, sticky="w", padx=(15, 5))
+        self.channel_combo = ttk.Combobox(top, textvariable=self.channel_var, state="readonly", width=15)
         self.channel_combo.grid(row=0, column=3, sticky="w")
         self.channel_combo.bind("<<ComboboxSelected>>", self._on_channel_change)
 
-        # Buttons
-        button_frame = ttk.Frame(top_frame)
-        button_frame.grid(row=0, column=4, sticky="e", padx=(20, 0))
+        btn_frame = ttk.Frame(top)
+        btn_frame.grid(row=0, column=4, sticky="e", padx=(20, 0))
 
-        self.reset_btn = ttk.Button(button_frame, text="Reset Channel", command=self.reset_channel)
+        self.reset_btn = ttk.Button(btn_frame, text="Reset Channel", command=self.reset_channel)
         self.reset_btn.grid(row=0, column=0, padx=(0, 5))
 
-        self.save_btn = ttk.Button(button_frame, text="Save JSON", command=self.save_json)
+        self.save_btn = ttk.Button(btn_frame, text="Save JSON", command=self.save_json)
         self.save_btn.grid(row=0, column=1, padx=(0, 5))
 
-        self.open_btn = ttk.Button(button_frame, text="Open JSON...", command=self.open_json)
-        self.open_btn.grid(row=0, column=2)
+        self.run_btn = ttk.Button(btn_frame, text="Run Pattern", command=self.on_run_clicked)
+        self.run_btn.grid(row=0, column=2, padx=(0, 5))
 
-        # Status label
+        self.open_btn = ttk.Button(btn_frame, text="Open JSON...", command=self.open_json)
+        self.open_btn.grid(row=0, column=3)
+
         status_label = ttk.Label(self, textvariable=self.status_var, foreground="#555")
         status_label.pack(fill="x", padx=10)
 
-        # Steps frame (table-like)
-        steps_frame = ttk.LabelFrame(self, text="Steps")
+        steps_frame = ttk.LabelFrame(self, text="Steps (volt & time)")
         steps_frame.pack(fill="both", expand=True, padx=10, pady=10)
 
-        # Header row
         header = ttk.Frame(steps_frame)
         header.pack(fill="x", padx=5, pady=(5, 2))
         ttk.Label(header, text="Step", width=8).grid(row=0, column=0, sticky="w")
         ttk.Label(header, text="Voltage (V)", width=15).grid(row=0, column=1, sticky="w")
         ttk.Label(header, text="Time (s)", width=15).grid(row=0, column=2, sticky="w")
 
-        # Scrollable area for rows
         self.steps_canvas = tk.Canvas(steps_frame, borderwidth=0, highlightthickness=0)
         self.steps_inner = ttk.Frame(self.steps_canvas)
         self.scrollbar = ttk.Scrollbar(steps_frame, orient="vertical", command=self.steps_canvas.yview)
@@ -97,11 +264,10 @@ class PatternEditorApp(tk.Tk):
 
         self.scrollbar.pack(side="right", fill="y")
         self.steps_canvas.pack(side="left", fill="both", expand=True)
-
         self.steps_canvas.create_window((0, 0), window=self.steps_inner, anchor="nw")
         self.steps_inner.bind("<Configure>", lambda e: self.steps_canvas.configure(scrollregion=self.steps_canvas.bbox("all")))
 
-    # ---------- Data loading/saving ---------- #
+    # --- JSON loading/saving ---
     def _load_patterns(self):
         try:
             with open(self.json_path, "r", encoding="utf-8") as f:
@@ -114,30 +280,24 @@ class PatternEditorApp(tk.Tk):
         self.original_patterns = deepcopy(data)
         self.patterns = deepcopy(data)
 
-        pattern_names = sorted(self.patterns.keys())
-        if not pattern_names:
+        names = sorted(self.patterns.keys())
+        if not names:
             self.status_var.set("patterns.json is empty.")
             return
 
-        self.pattern_combo["values"] = pattern_names
-        self.pattern_var.set(pattern_names[0])
-        self.current_pattern_name = pattern_names[0]
+        self.pattern_combo["values"] = names
+        self.pattern_var.set(names[0])
+        self.current_pattern_name = names[0]
         self._populate_channel_combo()
-        self.status_var.set(f"Loaded {self.json_path.name}. Select pattern and channel to edit.")
+        self.status_var.set(f"Loaded {self.json_path.name}. Select pattern and channel.")
 
     def save_json(self):
-        # Overwrite current file after confirmation
         if not self.patterns:
             messagebox.showwarning("Warning", "No patterns to save.")
             return
-
-        answer = messagebox.askyesno(
-            "Save JSON",
-            f"Overwrite file:\n{self.json_path} ?"
-        )
-        if not answer:
+        ans = messagebox.askyesno("Save JSON", f"Overwrite file:\n{self.json_path}?")
+        if not ans:
             return
-
         try:
             with open(self.json_path, "w", encoding="utf-8") as f:
                 json.dump(self.patterns, f, indent=2)
@@ -156,15 +316,15 @@ class PatternEditorApp(tk.Tk):
         self.json_path = Path(path)
         self._load_patterns()
 
-    # ---------- Selection changes ---------- #
+    # --- pattern/channel changes ---
     def _on_pattern_change(self, event=None):
         self.current_pattern_name = self.pattern_var.get()
         self._populate_channel_combo()
 
     def _populate_channel_combo(self):
         self.step_entries.clear()
-        for widget in self.steps_inner.winfo_children():
-            widget.destroy()
+        for w in self.steps_inner.winfo_children():
+            w.destroy()
 
         pat = self.patterns.get(self.current_pattern_name, {})
         channels = sorted(pat.keys())
@@ -183,102 +343,118 @@ class PatternEditorApp(tk.Tk):
         self.current_channel_name = self.channel_var.get()
         self._render_steps()
 
-    # ---------- Steps table ---------- #
+    # --- steps table ---
     def _render_steps(self):
-        # clear current rows
         self.step_entries.clear()
-        for widget in self.steps_inner.winfo_children():
-            widget.destroy()
+        for w in self.steps_inner.winfo_children():
+            w.destroy()
 
-        if not self.current_pattern_name or not self.current_channel_name:
+        if not (self.current_pattern_name and self.current_channel_name):
             return
 
         chan = self.patterns.get(self.current_pattern_name, {}).get(self.current_channel_name)
         if not chan:
-            self.status_var.set(f"No data for channel '{self.current_channel_name}' in pattern '{self.current_pattern_name}'.")
+            self.status_var.set(f"No data for channel '{self.current_channel_name}'.")
             return
 
         steps = chan.get("steps", [])
-        for row_idx, step_obj in enumerate(steps):
-            step_no = step_obj.get("step", row_idx + 1)
-            volt = step_obj.get("volt", 0.0)
-            time_val = step_obj.get("time", 0.0)
+        for idx, s in enumerate(steps):
+            step_no = s.get("step", idx + 1)
+            volt = s.get("volt", 0.0)
+            time_val = s.get("time", 0.0)
 
-            # Step number (label)
             lbl = ttk.Label(self.steps_inner, text=str(step_no), width=8)
-            lbl.grid(row=row_idx, column=0, sticky="w", padx=5, pady=2)
+            lbl.grid(row=idx, column=0, sticky="w", padx=5, pady=2)
 
-            # Voltage entry
             volt_var = tk.StringVar(value=str(volt))
-            volt_entry = ttk.Entry(self.steps_inner, textvariable=volt_var, width=12)
-            volt_entry.grid(row=row_idx, column=1, sticky="w", padx=5, pady=2)
-
-            # Time entry
             time_var = tk.StringVar(value=str(time_val))
-            time_entry = ttk.Entry(self.steps_inner, textvariable=time_var, width=12)
-            time_entry.grid(row=row_idx, column=2, sticky="w", padx=5, pady=2)
 
-            self.step_entries.append((step_no, volt_var, time_var))
+            v_entry = ttk.Entry(self.steps_inner, textvariable=volt_var, width=12)
+            v_entry.grid(row=idx, column=1, sticky="w", padx=5, pady=2)
+            t_entry = ttk.Entry(self.steps_inner, textvariable=time_var, width=12)
+            t_entry.grid(row=idx, column=2, sticky="w", padx=5, pady=2)
 
-        self.status_var.set(f"Editing pattern '{self.current_pattern_name}', channel '{self.current_channel_name}'.")
-        # Whenever we change pattern/channel, sync entries to data
-        self._sync_entries_to_data()
-
-        # Bind focus-out events once
-        for (_, volt_var, time_var) in self.step_entries:
             volt_var.trace_add("write", self._on_step_edited)
             time_var.trace_add("write", self._on_step_edited)
 
+            self.step_entries.append((step_no, volt_var, time_var))
+
+        self._sync_entries_to_data()
+        self.status_var.set(f"Editing pattern '{self.current_pattern_name}', channel '{self.current_channel_name}'.")
+
     def _on_step_edited(self, *args):
-        # Update self.patterns from current entries (so unsaved edits exist in memory)
         self._sync_entries_to_data()
 
     def _sync_entries_to_data(self):
         if not (self.current_pattern_name and self.current_channel_name):
             return
         chan = self.patterns[self.current_pattern_name][self.current_channel_name]
-        steps = chan.get("steps", [])
+        steps = chan.setdefault("steps", [])
+        if len(steps) < len(self.step_entries):
+            # pad if needed
+            for _ in range(len(self.step_entries) - len(steps)):
+                steps.append({"step": 0, "volt": 0.0, "time": 0.0})
 
-        for idx, (step_no, volt_var, time_var) in enumerate(self.step_entries):
-            if idx >= len(steps):
-                continue
-            # Parse volt / time, fall back to 0.0 on error
+        for idx, (step_no, v_var, t_var) in enumerate(self.step_entries):
             try:
-                v = float(volt_var.get())
+                v = float(v_var.get())
             except ValueError:
                 v = 0.0
             try:
-                t = float(time_var.get())
+                t = float(t_var.get())
             except ValueError:
                 t = 0.0
             steps[idx]["step"] = step_no
             steps[idx]["volt"] = v
             steps[idx]["time"] = t
 
-    # ---------- Reset logic ---------- #
+    # --- reset + run ---
     def reset_channel(self):
         if not (self.current_pattern_name and self.current_channel_name):
             return
-
-        answer = messagebox.askyesno(
+        ans = messagebox.askyesno(
             "Reset Channel",
             f"Reset channel '{self.current_channel_name}' in pattern '{self.current_pattern_name}' to defaults?"
         )
-        if not answer:
+        if not ans:
             return
-
         try:
             self.patterns[self.current_pattern_name][self.current_channel_name] = deepcopy(
                 self.original_patterns[self.current_pattern_name][self.current_channel_name]
             )
         except KeyError:
-            messagebox.showerror("Error", "No original data to reset from.")
+            messagebox.showerror("Error", "No original data for this channel.")
+            return
+        self._render_steps()
+        self.status_var.set("Channel reset to defaults.")
+
+    def on_run_clicked(self):
+        if not self.current_pattern_name:
+            messagebox.showwarning("Run", "No pattern selected.")
             return
 
-        self._render_steps()
-        self.status_var.set(
-            f"Channel '{self.current_channel_name}' in pattern '{self.current_pattern_name}' reset to defaults."
-        )
+        # make sure current edits go into memory
+        self._sync_entries_to_data()
+
+        pat_name = self.current_pattern_name
+        self.status_var.set(f"Running pattern '{pat_name}' on all devices...")
+        self.run_btn.config(state="disabled")
+
+        def worker():
+            try:
+                ok = run_pattern_on_all_devices(self.patterns, pat_name)
+            except Exception as e:
+                msg = f"Error running pattern '{pat_name}': {e}"
+                print(msg)
+                self.after(0, lambda: self.status_var.set(msg))
+            else:
+                msg = f"Run finished for pattern '{pat_name}'. Success={ok}"
+                print(msg)
+                self.after(0, lambda: self.status_var.set(msg))
+            finally:
+                self.after(0, lambda: self.run_btn.config(state="normal"))
+
+        threading.Thread(target=worker, daemon=True).start()
 
 
 if __name__ == "__main__":
