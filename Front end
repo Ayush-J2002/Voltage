@@ -526,4 +526,61 @@ class PatternEditorApp(tk.Tk):
 
     # --- reset + run ---
     def reset_channel(self):
-        if not (self.current_pattern_name and self.curren
+        if not (self.current_pattern_name and self.current_channel_name):
+            return
+        ans = messagebox.askyesno(
+            "Reset Channel",
+            f"Reset channel '{self.current_channel_name}' in pattern '{self.current_pattern_name}' to defaults?"
+        )
+        if not ans:
+            return
+        try:
+            self.patterns[self.current_pattern_name][self.current_channel_name] = deepcopy(
+                self.original_patterns[self.current_pattern_name][self.current_channel_name]
+            )
+        except KeyError:
+            messagebox.showerror("Error", "No original data for this channel.")
+            return
+        self._render_steps()
+        self.status_var.set("Channel reset to defaults.")
+
+    def on_run_clicked(self):
+        if not self.current_pattern_name:
+            messagebox.showwarning("Run", "No pattern selected.")
+            return
+
+        # sync edits into patterns dict
+        self._sync_entries_to_data()
+        pat_name = self.current_pattern_name
+
+        self.status_var.set(f"Programming and running pattern '{pat_name}' on all devices...")
+        self.run_btn.config(state="disabled")
+
+        def worker():
+            try:
+                ok = run_pattern_on_all_devices(self.patterns, pat_name)
+            except Exception as e:
+                msg = f"Error running pattern '{pat_name}': {e}"
+                print(msg)
+                self.after(0, lambda: self.status_var.set(msg))
+                self.after(0, lambda: messagebox.showerror("Run Error", msg))
+            else:
+                if ok:
+                    msg = f"Pattern '{pat_name}' is set on all devices and running."
+                    print(msg)
+                    self.after(0, lambda: self.status_var.set(msg))
+                    self.after(0, lambda: messagebox.showinfo("Run", msg))
+                else:
+                    msg = f"Pattern '{pat_name}' did not start correctly on all devices."
+                    print(msg)
+                    self.after(0, lambda: self.status_var.set(msg))
+                    self.after(0, lambda: messagebox.showwarning("Run", msg))
+            finally:
+                self.after(0, lambda: self.run_btn.config(state="normal"))
+
+        threading.Thread(target=worker, daemon=True).start()
+
+
+if __name__ == "__main__":
+    app = PatternEditorApp(DEFAULT_JSON_PATH)
+    app.mainloop()
