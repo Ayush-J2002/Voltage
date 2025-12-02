@@ -70,7 +70,7 @@ def validate_steps(steps):
             raise ValueError(f"Steps must be 1..N contiguous. Found step={s['step']} at position {i}.")
     return ss
 
-def program_device_for_subpattern(device_name: str, dev_cfg: dict, subpattern: dict, start_now: bool = False):
+def program_device_for_subpattern(device_name: str, dev_cfg: dict, subpattern: dict):
     """
     Uploads one channel (BATTERY / IGN / ACC) of the selected pattern to one PBZ.
     Handles:
@@ -78,7 +78,7 @@ def program_device_for_subpattern(device_name: str, dev_cfg: dict, subpattern: d
       - optional DC ramp (dc_ramp_start)
       - optional AC sine (ac_amp, ac_freq) with amplitude sweep start=stop=ac_amp
 
-    If start_now is True, it will also OUTP ON + PROG:EXEC:STAT RUN.
+    Does NOT start the program; starting is done later for all devices together.
     """
     resource = dev_cfg["resource"]
     slot = dev_cfg["program_slot"]
@@ -156,12 +156,7 @@ def program_device_for_subpattern(device_name: str, dev_cfg: dict, subpattern: d
         # save
         write_and_report(inst, "PROG:SAVE")
 
-        # optionally run immediately
-        if start_now:
-            write_and_report(inst, "OUTP ON")
-            write_and_report(inst, "PROG:EXEC:STAT RUN")
-
-        print(f"Device {device_name} programmed (start_now={start_now}).")
+        print(f"Device {device_name} programmed.")
         return True
 
     except Exception as e:
@@ -175,35 +170,49 @@ def program_device_for_subpattern(device_name: str, dev_cfg: dict, subpattern: d
             except Exception:
                 pass
 
-def start_all_devices():
+def start_one_device(dev_name: str, dev_cfg: dict, results: dict):
     """
-    After all devices are programmed, call this to OUTP ON + RUN
-    on each device. This makes them start as "simultaneously"
-    as our loop allows.
+    Thread worker: open device, OUTP ON, PROG:EXEC:STAT RUN.
     """
-    ok_all = True
-    for dev_name, dev_cfg in TARGETS.items():
-        resource = dev_cfg["resource"]
+    resource = dev_cfg["resource"]
+    try:
+        print(f"Starting device {dev_name} ({resource})...")
+        inst = open_inst(resource)
+        write_and_report(inst, "OUTP ON")
+        write_and_report(inst, "PROG:EXEC:STAT RUN")
+        results[dev_name] = True
+    except Exception as e:
+        print(f"EXCEPTION while starting {dev_name}: {e}")
+        results[dev_name] = False
+    finally:
         try:
-            print(f"Starting device {dev_name} ({resource})...")
-            inst = open_inst(resource)
-            # we assume program and steps are already saved
-            write_and_report(inst, "OUTP ON")
-            write_and_report(inst, "PROG:EXEC:STAT RUN")
-        except Exception as e:
-            print(f"EXCEPTION while starting {dev_name}: {e}")
-            ok_all = False
-        finally:
-            try:
-                inst.close()
-            except Exception:
-                pass
-    return ok_all
+            inst.close()
+        except Exception:
+            pass
+
+def start_all_devices_parallel():
+    """
+    Starts all devices in parallel threads (OUTP ON + RUN).
+    """
+    threads = []
+    results = {}
+
+    for dev_name, dev_cfg in TARGETS.items():
+        t = threading.Thread(target=start_one_device, args=(dev_name, dev_cfg, results))
+        t.daemon = True
+        threads.append(t)
+        t.start()
+
+    for t in threads:
+        t.join()
+
+    # if any device failed, overall False
+    return all(results.get(dev_name, False) for dev_name in TARGETS.keys())
 
 def run_pattern_on_all_devices(patterns: dict, pattern_name: str):
     """
     1) Programs all devices with the selected pattern but does NOT start them.
-    2) When all OK, turns output ON and runs program on all devices.
+    2) When all OK, turns output ON and runs program on all devices in parallel.
     """
     if pattern_name not in patterns:
         raise ValueError(f"Pattern '{pattern_name}' not found in JSON.")
@@ -218,7 +227,7 @@ def run_pattern_on_all_devices(patterns: dict, pattern_name: str):
             ok_all = False
             continue
         sub = pat[dev_name]
-        ok = program_device_for_subpattern(dev_name, dev_cfg, sub, start_now=False)
+        ok = program_device_for_subpattern(dev_name, dev_cfg, sub)
         if not ok:
             ok_all = False
 
@@ -226,8 +235,8 @@ def run_pattern_on_all_devices(patterns: dict, pattern_name: str):
         print("Not all devices programmed successfully; not starting outputs.")
         return False
 
-    # Second: start all outputs/programs
-    ok_start = start_all_devices()
+    # Second: start all outputs/programs in PARALLEL
+    ok_start = start_all_devices_parallel()
     return ok_start
 
 # ---------------- Tkinter App ---------------- #
@@ -236,7 +245,7 @@ class PatternEditorApp(tk.Tk):
     def __init__(self, json_path: Path):
         super().__init__()
         self.title("Power Pattern Editor + Runner")
-        self.geometry("820x540")
+        self.geometry("840x540")
 
         self.json_path = json_path
         self.original_patterns = {}
@@ -293,7 +302,7 @@ class PatternEditorApp(tk.Tk):
         ttk.Label(header, text="Step", width=6).grid(row=0, column=0, sticky="w")
         ttk.Label(header, text="Voltage (V)", width=12).grid(row=0, column=1, sticky="w")
         ttk.Label(header, text="Time (s)", width=12).grid(row=0, column=2, sticky="w")
-        ttk.Label(header, text="DC Ramp Start (V)", width=16).grid(row=0, column=3, sticky="w")
+        ttk.Label(header, text="DC Ramp Start (V)", width=18).grid(row=0, column=3, sticky="w")
         ttk.Label(header, text="AC Amp (Vpp)", width=14).grid(row=0, column=4, sticky="w")
         ttk.Label(header, text="AC Freq (Hz)", width=14).grid(row=0, column=5, sticky="w")
 
@@ -414,12 +423,12 @@ class PatternEditorApp(tk.Tk):
             # DC ramp start (only visible if present in JSON)
             if ramp_start is not None:
                 ramp_var = tk.StringVar(value=str(ramp_start))
-                r_entry = ttk.Entry(self.steps_inner, textvariable=ramp_var, width=14)
+                r_entry = ttk.Entry(self.steps_inner, textvariable=ramp_var, width=16)
                 r_entry.grid(row=idx, column=3, sticky="w", padx=5, pady=2)
             else:
                 ramp_var = None
-                r_label = ttk.Label(self.steps_inner, text="", width=14)
-                r_label.grid(row=idx, column=3, sticky="w", padx=5, pady=2)
+                r_lbl = ttk.Label(self.steps_inner, text="", width=16)
+                r_lbl.grid(row=idx, column=3, sticky="w", padx=5, pady=2)
 
             # AC amp (only if present)
             if ac_amp is not None:
@@ -428,8 +437,8 @@ class PatternEditorApp(tk.Tk):
                 a_entry.grid(row=idx, column=4, sticky="w", padx=5, pady=2)
             else:
                 ac_amp_var = None
-                a_label = ttk.Label(self.steps_inner, text="", width=12)
-                a_label.grid(row=idx, column=4, sticky="w", padx=5, pady=2)
+                a_lbl = ttk.Label(self.steps_inner, text="", width=12)
+                a_lbl.grid(row=idx, column=4, sticky="w", padx=5, pady=2)
 
             # AC freq (only if present)
             if ac_freq is not None:
@@ -438,10 +447,10 @@ class PatternEditorApp(tk.Tk):
                 f_entry.grid(row=idx, column=5, sticky="w", padx=5, pady=2)
             else:
                 ac_freq_var = None
-                f_label = ttk.Label(self.steps_inner, text="", width=12)
-                f_label.grid(row=idx, column=5, sticky="w", padx=5, pady=2)
+                f_lbl = ttk.Label(self.steps_inner, text="", width=12)
+                f_lbl.grid(row=idx, column=5, sticky="w", padx=5, pady=2)
 
-            entry_info = {
+            info = {
                 "step_no": step_no,
                 "volt_var": volt_var,
                 "time_var": time_var,
@@ -449,7 +458,7 @@ class PatternEditorApp(tk.Tk):
                 "ac_amp_var": ac_amp_var,
                 "ac_freq_var": ac_freq_var,
             }
-            self.step_entries.append(entry_info)
+            self.step_entries.append(info)
 
             # traces for live updates
             volt_var.trace_add("write", self._on_step_edited)
@@ -499,10 +508,6 @@ class PatternEditorApp(tk.Tk):
                     s["dc_ramp_start"] = float(info["ramp_var"].get())
                 except ValueError:
                     s["dc_ramp_start"] = 0.0
-            else:
-                # if it wasn't in JSON originally, don't add it
-                if "dc_ramp_start" in s and s["dc_ramp_start"] is None:
-                    del s["dc_ramp_start"]
 
             # Optional AC amp
             if info["ac_amp_var"] is not None:
@@ -510,9 +515,6 @@ class PatternEditorApp(tk.Tk):
                     s["ac_amp"] = float(info["ac_amp_var"].get())
                 except ValueError:
                     s["ac_amp"] = 0.0
-            else:
-                if "ac_amp" in s and s["ac_amp"] is None:
-                    del s["ac_amp"]
 
             # Optional AC freq
             if info["ac_freq_var"] is not None:
@@ -520,9 +522,6 @@ class PatternEditorApp(tk.Tk):
                     s["ac_freq"] = float(info["ac_freq_var"].get())
                 except ValueError:
                     s["ac_freq"] = 0.0
-            else:
-                if "ac_freq" in s and s["ac_freq"] is None:
-                    del s["ac_freq"]
 
     # --- reset + run ---
     def reset_channel(self):
