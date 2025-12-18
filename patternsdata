@@ -1,726 +1,1726 @@
 {
-    "A1": {
-      "ACC": {
-        "title": "ACC_A1",
-        "steps": [
-            {"step": 1, "volt": 0.0,  "time": 1.0},
-            {"step": 2, "volt": 12.0, "time": 1.0},
-            {"step": 3, "volt": 0.0,  "time": 1.2},
-            {"step": 4, "volt": 13.0,  "time": 40.0},
-            {"step": 5, "volt": 0.0,  "time": 2.0}
-        ]
-      },
-  
-      "IGN": {
-        "title": "IGN_A1",
-        "steps": [
-            {"step": 1, "volt": 0.0,  "time": 1.0},
-            {"step": 2, "volt": 12.0, "time": 1.0},
-            {"step": 3, "volt": 0.0,  "time": 1.2},
-            {"step": 4, "volt": 13.0,  "time": 40.0},
-            {"step": 5, "volt": 0.0,  "time": 2.0}
-        ]
-      },
-  
-      "BATTERY": {
-        "title": "BATTERY_A1",
-        "steps": [
-            {"step": 1, "volt": 13.0, "time": 1.0},
-            {"step": 2, "volt": 12.0, "time": 2.2},
-            {"step": 3, "volt": 13.0, "time": 42.0}
-        ]
-      }
+  "A1": {
+    "ACC": {
+      "title": "ACC_A1",
+      "steps": [
+        {
+          "step": 1,
+          "volt": 0.0,
+          "time": 1.0
+        },
+        {
+          "step": 2,
+          "volt": 12.0,
+          "time": 1.0
+        },
+        {
+          "step": 3,
+          "volt": 0.0,
+          "time": 1.2
+        },
+        {
+          "step": 4,
+          "volt": 13.0,
+          "time": 40.0
+        },
+        {
+          "step": 5,
+          "volt": 0.0,
+          "time": 2.0
+        }
+      ]
     },
-  
-    "A2": {
-        "ACC": {
-          "title": "ACC_A2",
-          "steps": [
-              {"step": 1, "volt": 0.0,  "time": 1.0},
-              {"step": 2, "volt": 12.0, "time": 1.550},
-              {"step": 3, "volt": 0.0,  "time": 1.0},
-              {"step": 4, "volt": 13.0,  "time": 40.0},
-              {"step": 5, "volt": 0.0,  "time": 2.0}
-          ]
+    "IGN": {
+      "title": "IGN_A1",
+      "steps": [
+        {
+          "step": 1,
+          "volt": 0.0,
+          "time": 1.0
         },
-    
-        "IGN": {
-          "title": "IGN_A2",
-          "steps": [
-              {"step": 1, "volt": 0.0,  "time": 1.0},
-              {"step": 2, "volt": 12.0, "time": 1.550},
-              {"step": 3, "volt": 0.0,  "time": 1.0},
-              {"step": 4, "volt": 13.0,  "time": 40.0},
-              {"step": 5, "volt": 0.0,  "time": 2.0}
-          ]
+        {
+          "step": 2,
+          "volt": 12.0,
+          "time": 1.0
         },
-    
-        "BATTERY": {
-          "title": "BATTERY_A2",
-          "steps": [
-              {"step": 1, "volt": 13.0, "time": 1.0},
-              {"step": 2, "volt": 12.0, "time": 2.550},
-              {"step": 3, "volt": 13.0, "time": 42.0}
-          ]
+        {
+          "step": 3,
+          "volt": 0.0,
+          "time": 1.2
+        },
+        {
+          "step": 4,
+          "volt": 13.0,
+          "time": 40.0
+        },
+        {
+          "step": 5,
+          "volt": 0.0,
+          "time": 2.0
         }
-      },
-      "A3": {
-        "ACC": {
-          "title": "ACC_A3",
-          "steps": [
-              {"step": 1, "volt": 0.0,  "time": 2.150},
-              {"step": 2, "volt": 12.0, "time": 1.0},
-              {"step": 3, "volt": 13.0,  "time": 40.0},
-              {"step": 4, "volt": 0.0,  "time": 2.0}
-          ]
+      ]
+    },
+    "BATTERY": {
+      "title": "BATTERY_A1",
+      "steps": [
+        {
+          "step": 1,
+          "volt": 13.0,
+          "time": 1.0
         },
-    
-        "IGN": {
-          "title": "IGN_A3",
-          "steps": [
-            {"step": 1, "volt": 0.0,  "time": 2.150},
-            {"step": 2, "volt": 12.0, "time": 1.0},
-            {"step": 3, "volt": 13.0,  "time": 40.0},
-            {"step": 4, "volt": 0.0,  "time": 2.0}
-          ]
+        {
+          "step": 2,
+          "volt": 12.0,
+          "time": 2.2
         },
-    
-        "BATTERY": {
-          "title": "BATTERY_A3",
-          "steps": [
-              {"step": 1, "volt": 0.0, "time": 1.0},
-              {"step": 2, "volt": 12.0, "time": 0.1},
-              {"step": 3, "volt": 0.0, "time": 0.05},
-              {"step": 4, "volt": 12.0, "time": 2.0},
-              {"step": 5, "volt": 13.0, "time": 42.0}
-          ]
+        {
+          "step": 3,
+          "volt": 13.0,
+          "time": 42.0
         }
-      },
-        "D1": {
-          "BATTERY": {
-            "title": "BATTERY_D1",
-            "steps": [
-              { "step": 1, "volt": 13.0, "time": 1.0 },
-              { "step": 2, "volt": 12.0, "time": 1.1 },
-              { "step": 3, "volt": 6.5,  "time": 7.0,
-                "dc_ramp_start": 5.9,
-                "ac_amp": 0.6,
-                "ac_freq": 30.0,
-                "ac_wave":"SIN"
-              },
-              { "step": 4, "volt": 12.0, "time": 1.0 },
-              { "step": 5, "volt": 13.0, "time": 22.0 }
-            ]
-          },
-          "IGN": {
-            "title": "IGN1_D1",
-            "steps": [
-              { "step": 1, "volt": 13.0, "time": 1.0 },
-              { "step": 2, "volt": 12.0, "time": 1.1 },
-              { "step": 3, "volt": 6.5,  "time": 7.0,
-                "dc_ramp_start": 5.9,
-                "ac_amp": 0.6,
-                "ac_freq": 30.0,
-                "ac_wave":"SIN"
-              },
-              { "step": 4, "volt": 12.0, "time": 1.0 },
-              { "step": 5, "volt": 13.0, "time": 20.0 },
-              { "step": 6, "volt": 0.0, "time": 2.0 }
-              
-            ]
-          },
-          "ACC": {
-            "title": "ACC_D1",
-            "steps": [
-              { "step": 1, "volt": 0.0, "time": 1.0 },
-              { "step": 2, "volt": 12.0, "time": 1.0 },
-              { "step": 3, "volt": 0.0, "time": 7.1 },
-              { "step": 4, "volt": 13.0, "time": 21.0 },
-              { "step": 5, "volt": 0.0, "time": 2.0 }
-            ]
-          }
+      ]
+    }
+  },
+  "A2": {
+    "ACC": {
+      "title": "ACC_A2",
+      "steps": [
+        {
+          "step": 1,
+          "volt": 0.0,
+          "time": 1.0
         },
-        "D2": {
-          "BATTERY": {
-            "title": "BATTERY_D2",
-            "steps": [
-              { "step": 1, "volt": 12.0, "time": 6.0 },
-              { "step": 2, "volt": 9.0, "time": 2.0,
-              "dc_ramp_start": 2.0,
-              "ac_amp": 7.0,
-              "ac_freq": 2.0,
-              "ac_wave":"SQU"
-             },
-              { "step": 3, "volt": 9.0,  "time": 2.0,
-                "dc_ramp_start": 5.9,
-                "ac_amp": 7.0,
-                "ac_freq": 5.0,
-                "ac_wave":"SQU"
-              },
-              { "step": 4, "volt": 9.0,  "time": 2.0,
-                "dc_ramp_start": 2.0,
-                "ac_amp": 7.0,
-                "ac_freq": 10.0,
-                "ac_wave":"SQU"
-              },
-              { "step": 5, "volt": 9.0,  "time": 2.0,
-                "dc_ramp_start": 2.0,
-                "ac_amp": 7.0,
-                "ac_freq": 20.0,
-                "ac_wave":"SQU"
-              },
-              { "step": 6, "volt": 12.0, "time": 1.0 },
-              { "step": 7, "volt": 13.0, "time": 22.0 }
-            ]
-          },
-          "IGN": {
-            "title": "IGN1_D2",
-            "steps": [
-              { "step": 1, "volt": 0.0, "time": 1.0 },
-              { "step": 2, "volt": 12.0, "time": 1.0 },
-              { "step": 3, "volt": 9.0, "time": 2.0,
-              "dc_ramp_start": 2.0,
-              "ac_amp": 7.0,
-              "ac_freq": 2.0,
-              "ac_wave":"SQU"
-             },
-              { "step": 4, "volt": 9.0,  "time": 2.0,
-                "dc_ramp_start": 5.9,
-                "ac_amp": 7.0,
-                "ac_freq": 5.0,
-                "ac_wave":"SQU"
-              },
-              { "step": 5, "volt": 9.0,  "time": 2.0,
-                "dc_ramp_start": 2.0,
-                "ac_amp": 7.0,
-                "ac_freq": 10.0,
-                "ac_wave":"SQU"
-              },
-              { "step": 6, "volt": 9.0,  "time": 2.0,
-                "dc_ramp_start": 2.0,
-                "ac_amp": 7.0,
-                "ac_freq": 20.0,
-                "ac_wave":"SQU"
-              },
-              { "step": 7, "volt": 12.0, "time": 1.0 },
-              { "step": 8, "volt": 13.0, "time": 20.0 },
-              { "step": 9, "volt": 0.0, "time": 2.0 }
-              
-            ]
-          },
-          "ACC": {
-            "title": "ACC_D2",
-            "steps": [
-              { "step": 1, "volt": 0.0, "time": 1.0 },
-              { "step": 2, "volt": 12.0, "time": 5.0 },
-              { "step": 3, "volt": 0.0, "time": 8.0 },
-              { "step": 4, "volt": 12.0, "time": 1.0 },
-              { "step": 5, "volt": 13.0, "time": 20.0 },
-              { "step": 6, "volt": 0.0, "time": 2.0 }
-            ]
-          }
+        {
+          "step": 2,
+          "volt": 12.0,
+          "time": 1.55
         },
-        "D3": {
-          "BATTERY": {
-            "title": "BATTERY_D3",
-            "steps": [
-              { "step": 1, "volt": 13.0, "time": 1.0 },
-              { "step": 2, "volt": 12.0, "time": 0.550 },
-              { "step": 3, "volt": 12.0,  "time": 5.0,
-                "dc_ramp_start": 5.0,
-                "ac_amp": 2.0,
-                "ac_freq": 10.0,
-                "ac_wave":"SIN"
-              },
-              { "step": 4, "volt": 12.0, "time": 1.0 },
-              { "step": 5, "volt": 13.0, "time": 22.0 }
-            ]
-          },
-          "IGN": {
-            "title": "IGN1_D3",
-            "steps": [
-              { "step": 1, "volt": 13.0, "time": 1.0 },
-              { "step": 2, "volt": 12.0, "time": 0.550 },
-              { "step": 3, "volt": 12.0,  "time": 5.0,
-                "dc_ramp_start": 5.0,
-                "ac_amp": 2.0,
-                "ac_freq": 10.0,
-                "ac_wave":"SIN"
-              },
-              { "step": 4, "volt": 12.0, "time": 1.0 },
-              { "step": 5, "volt": 13.0, "time": 20.0 },
-              { "step": 6, "volt": 0.0, "time": 2.0 }
-              
-            ]
-          },
-          "ACC": {
-            "title": "ACC_D3",
-            "steps": [
-              { "step": 1, "volt": 0.0, "time": 1.0 },
-              { "step": 2, "volt": 12.0, "time": 0.500 },
-              { "step": 3, "volt": 0.0, "time": 5.050 },
-              { "step": 4, "volt": 13.0, "time": 21.0 },
-              { "step": 5, "volt": 0.0, "time": 2.0 }
-            ]
-          } 
+        {
+          "step": 3,
+          "volt": 0.0,
+          "time": 1.0
         },
-        "B1(+B)": {
-          "ACC": {
-            "title": "ACC_B1(+B)",
-            "steps": [
-              {"step": 1, "volt": 0.0,  "time": 2.150},
-              {"step": 2, "volt": 12.0, "time": 0.6},
-              {"step": 3, "volt": 0.0,  "time": 0.3},
-              {"step": 4, "volt": 13.0,  "time": 20.0},
-              {"step": 5, "volt": 0.0,  "time": 2.0}
-            ]
-          },
-      
-          "IGN": {
-            "title": "IGN_B1(+B)",
-            "steps": [
-              {"step": 1, "volt": 0.0,  "time": 1.0},
-              {"step": 2, "volt": 12.0, "time": 1.560},
-              {"step": 3, "volt": 0.0,  "time": 0.570},
-              {"step": 4, "volt": 13.0,  "time": 20.0},
-              {"step": 5, "volt": 0.0,  "time": 2.0}
-            ]
-          },
-      
-          "BATTERY": {
-            "title": "BATTERY_B1(+B)",
-            "steps": [
-                {"step": 1, "volt": 13.0, "time": 1.0},
-                {"step": 2, "volt": 12.0, "time": 2.13},
-                {"step": 3, "volt": 13.0, "time": 22.0}
-            ]
-          }
+        {
+          "step": 4,
+          "volt": 13.0,
+          "time": 40.0
         },
-        "A(+B Back Up)": {
-          "ACC": {
-            "title": "ACC_A(+B)",
-            "steps": [
-              {"step": 1, "volt": 0.0,  "time":  1.0},
-              {"step": 2, "volt": 12.0, "time": 10.0},
-              {"step": 3, "volt": 0.0,  "time": 10.0},
-              {"step": 4, "volt": 13.0,  "time": 20.0},
-              {"step": 5, "volt": 0.0,  "time": 2.0}
-            ]
-          },
-      
-          "IGN": {
-            "title": "IGN_A(+B)",
-            "steps": [
-              {"step": 1, "volt": 0.0,  "time":  1.0},
-              {"step": 2, "volt": 12.0, "time": 10.0},
-              {"step": 3, "volt": 0.0,  "time": 10.0},
-              {"step": 4, "volt": 13.0,  "time": 20.0},
-              {"step": 5, "volt": 0.0,  "time": 2.0}
-            ]
-          },
-      
-          "BATTERY": {
-            "title": "BATTERY_A(+B)",
-            "steps": [
-                {"step": 1, "volt": 13.0, "time": 1.0},
-                {"step": 2, "volt": 12.0, "time": 20.0},
-                {"step": 3, "volt": 13.0, "time": 22.0}
-            ]
-          }
+        {
+          "step": 5,
+          "volt": 0.0,
+          "time": 2.0
+        }
+      ]
+    },
+    "IGN": {
+      "title": "IGN_A2",
+      "steps": [
+        {
+          "step": 1,
+          "volt": 0.0,
+          "time": 1.0
         },
-        "B2(+B)": {
-          "ACC": {
-            "title": "ACC_B2(+B)",
-            "steps": [
-              {"step": 1, "volt": 0.0,  "time": 1.5},
-              {"step": 2, "volt": 12.0, "time": 1.2},
-              {"step": 3, "volt": 12.0,  "time": 0.3},
-              {"step": 4, "volt": 13.0,  "time": 20.0},
-              {"step": 5, "volt": 0.0,  "time": 2.0}
-            ]
-          },
-      
-          "IGN": {
-            "title": "IGN_B2(+B)",
-            "steps": [
-              {"step": 1, "volt": 0.0,  "time": 1.0},
-              {"step": 2, "volt": 12.0, "time": 0.525},
-              {"step": 3, "volt": 0.0,  "time": 1.195},
-              {"step": 4, "volt": 12.0,  "time": 0.280},
-              {"step": 5, "volt": 13.0,  "time": 20.0},
-              {"step": 6, "volt": 0.0,  "time": 2.0}
-            ]
-          },
-      
-          "BATTERY": {
-            "title": "BATTERY_B2(+B)",
-            "steps": [
-                {"step": 1, "volt": 13.0, "time": 1.0},
-                {"step": 2, "volt": 12.0, "time": 2.0},
-                {"step": 3, "volt": 13.0, "time": 22.0}
-            ]
-          }
+        {
+          "step": 2,
+          "volt": 12.0,
+          "time": 1.55
         },
-        "D4": {
-          "ACC": {
-            "title": "ACC_D4",
-            "steps": [
-              {"step": 1, "volt": 0.0,  "time": 1.0},
-              {"step": 2, "volt": 12.0, "time": 2.0},
-              {"step": 3, "volt": 0.0,  "time": 0.1},
-              {"step": 4, "volt": 12.0,  "time": 0.05},
-              {"step": 5, "volt": 0.0,  "time": 0.05},
-              {"step": 6, "volt": 0.0,  "time": 5.0},
-              {"step": 7, "volt": 12.0,  "time": 1.0},
-              {"step": 8, "volt": 13.0,  "time": 20.0},
-              {"step": 9, "volt": 0.0,  "time": 2.0}
-            ]
-          },
-      
-          "IGN": {
-            "title": "IGN_D4",
-            "steps": [
-              {"step": 1, "volt": 0.0,  "time": 1.0},
-              {"step": 2, "volt": 12.0, "time": 2.0},
-              {"step": 3, "volt": 0.0,  "time": 0.1},
-              {"step": 4, "volt": 12.0,  "time": 0.1},
-              {"step": 5, "volt": 12.0,  "time": 5.0,
-              "dc_ramp_start": 5.0,
-                "ac_amp": 2.0,
-                "ac_freq": 10.0,
-                "ac_wave":"SIN"
-            },
-              {"step": 6, "volt": 12.0,  "time": 1.0},
-              {"step": 7, "volt": 13.0,  "time": 20.0},
-              {"step": 8, "volt": 0.0,  "time": 2.0}
-            ]
-          },
-      
-          "BATTERY": {
-            "title": "BATTERY_D4",
-            "steps": [
-              {"step": 1, "volt": 12.0,  "time": 3.2},
-              {"step": 2, "volt": 12.0, "time": 2.0,
-              "dc_ramp_start": 5.0,
-                "ac_amp": 2.0,
-                "ac_freq": 10.0,
-                "ac_wave":"SIN"
-            },
-              {"step": 3, "volt": 12.0,  "time": 1.0},
-              {"step": 4, "volt": 13.0,  "time": 22.0}
-            ]
-          }
+        {
+          "step": 3,
+          "volt": 0.0,
+          "time": 1.0
         },
-        "D5": {
-          "ACC": {
-            "title": "ACC_D5",
-            "steps": [
-              {"step": 1, "volt": 0.0,  "time": 4.0},
-              {"step": 2, "volt": 12.0, "time": 2.0},
-              {"step": 3, "volt": 0.0,  "time": 3.05},
-              {"step": 4, "volt": 12.0,  "time": 1.0},
-              {"step": 5, "volt": 13.0,  "time": 20.0},
-              {"step": 6, "volt": 0.0,  "time": 2.0}
-              
-            ]
-          },
-      
-          "IGN": {
-            "title": "IGN_D5",
-            "steps": [
-              {"step": 1, "volt": 0.0,  "time": 4.0},
-              {"step": 2, "volt": 12.0, "time": 2.05},
-              {"step": 3, "volt": 12.0,  "time": 3.0,
-              "dc_ramp_start": 5.0,
-                "ac_amp": 2.0,
-                "ac_freq": 10.0,
-                "ac_wave":"SIN"
-            },
-              {"step": 4, "volt": 12.0,  "time": 1.0},
-              {"step": 5, "volt": 13.0,  "time": 20.0},
-              {"step": 6, "volt": 0.0,  "time": 2.0}
-            ]
-          },
-      
-          "BATTERY": {
-            "title": "BATTERY_D5",
-            "steps": [
-              {"step": 1, "volt": 0.0,  "time": 1.0},
-              {"step": 2, "volt": 12.0, "time": 5.05},
-              {"step": 3, "volt": 12.0,  "time": 3.0,
-              "dc_ramp_start": 5.0,
-                "ac_amp": 2.0,
-                "ac_freq": 10.0,
-                "ac_wave":"SIN"
-            },
-              {"step": 4, "volt": 12.0,  "time": 1.0},
-              {"step": 5, "volt": 13.0,  "time": 22.0}
-            ]
-          }
+        {
+          "step": 4,
+          "volt": 13.0,
+          "time": 40.0
         },
-        "E": {
-          "ACC": {
-            "title": "ACC_E",
-            "steps": [
-              {"step": 1, "volt": 0.0,  "time": 1.0},
-              {"step": 2, "volt": 14.0, "time": 1.0},
-              {"step": 3, "volt": 0.0,  "time": 1.0},
-              {"step": 4, "volt": 13.0,  "time": 20.0},
-              {"step": 5, "volt": 0.0,  "time": 2.0}
-              
-            ]
-          },
-      
-          "IGN": {
-            "title": "IGN_E",
-            "steps": [
-              {"step": 1, "volt": 0.0,  "time": 1.0},
-              {"step": 2, "volt": 14.0, "time": 1.0},
-              {"step": 3, "volt": 0.0,  "time": 1.0,
-              "dc_ramp_start": 10.0,
-                "ac_amp": 2.0,
-                "ac_freq": 50.0,
-                "ac_wave":"SIN"
-            },
-              {"step": 4, "volt": 13.0,  "time": 20.0},
-              {"step": 5, "volt": 0.0,  "time": 2.0}
-            ]
-          },
-      
-          "BATTERY": {
-            "title": "BATTERY_E",
-            "steps": [
-              {"step": 1, "volt": 13.0,  "time": 1.0},
-              {"step": 2, "volt": 14.0, "time": 2.0},
-              {"step": 3, "volt": 13.0,  "time": 22.0}
-            ]
-          }
+        {
+          "step": 5,
+          "volt": 0.0,
+          "time": 2.0
+        }
+      ]
+    },
+    "BATTERY": {
+      "title": "BATTERY_A2",
+      "steps": [
+        {
+          "step": 1,
+          "volt": 13.0,
+          "time": 1.0
         },
-        "E(+B Back Up)": {
-          "ACC": {
-            "title": "ACC_E(+B Back Up)",
-            "steps": [
-              {"step": 1, "volt": 0.0,  "time": 1.0},
-              {"step": 2, "volt": 14.0, "time": 1.0},
-              {"step": 3, "volt": 0.0,  "time": 1.0},
-              {"step": 4, "volt": 13.0,  "time": 20.0},
-              {"step": 5, "volt": 0.0,  "time": 2.0}
-              
-            ]
-          },
-      
-          "IGN": {
-            "title": "IGN_E(+B Back Up)",
-            "steps": [
-              {"step": 1, "volt": 0.0,  "time": 1.0},
-              {"step": 2, "volt": 12.0, "time": 1.0},
-              {"step": 3, "volt": 0.0,  "time": 1.0,
-              "dc_ramp_start": 10.0,
-                "ac_amp": 2.0,
-                "ac_freq": 50.0,
-                "ac_wave":"SIN"
-            },
-              {"step": 4, "volt": 13.0,  "time": 20.0},
-              {"step": 5, "volt": 0.0,  "time": 2.0}
-            ]
-          },
-      
-          "BATTERY": {
-            "title": "BATTERY_E(+B Back Up)",
-            "steps": [
-              {"step": 1, "volt": 13.0,  "time": 1.0},
-              {"step": 2, "volt": 14.0, "time": 2.0},
-              {"step": 3, "volt": 13.0,  "time": 22.0}
-            ]
-          }
+        {
+          "step": 2,
+          "volt": 12.0,
+          "time": 2.55
         },
-        "D(+B Back Up)": {
-          "ACC": {
-            "title": "ACC_D(+B Back Up)",
-            "steps": [
-              {"step": 1, "volt": 0.0,  "time": 1.0},
-              {"step": 2, "volt": 12.0, "time": 0.2},
-              {"step": 3, "volt": 0.0,  "time": 5.05},
-              {"step": 4, "volt": 13.0,  "time": 21.0},
-              {"step": 5, "volt": 0.0,  "time": 2.0}
-              
-            ]
-          },
-      
-          "IGN": {
-            "title": "IGN_D(+B Back Up)",
-            "steps": [
-              {"step": 1, "volt": 0.0,  "time": 1.0},
-              {"step": 2, "volt": 12.0, "time": 0.25},
-              {"step": 3, "volt": 12.0,  "time": 5.0,
-              "dc_ramp_start": 5.0,
-                "ac_amp": 2.0,
-                "ac_freq": 10.0,
-                "ac_wave":"SIN"
-            },
-              {"step": 4, "volt": 12.0,  "time": 1.0},
-              {"step": 5, "volt": 13.0,  "time": 20.0},
-              {"step": 6, "volt": 0.0,  "time": 2.0}
-            ]
-          },
-      
-          "BATTERY": {
-            "title": "BATTERY_D(+B Back Up)",
-            "steps": [
-              {"step": 1, "volt": 13.0,  "time": 1.0},
-              {"step": 2, "volt": 12.0, "time": 0.25},
-              {"step": 3, "volt": 12.0,  "time": 5.0,
-              "dc_ramp_start": 5.0,
-                "ac_amp": 2.0,
-                "ac_freq": 10.0,
-                "ac_wave":"SIN"
-            },
-              {"step": 4, "volt": 12.0,  "time": 1.0},
-              {"step": 5, "volt": 13.0,  "time": 22.0}
-            ]
-          }
+        {
+          "step": 3,
+          "volt": 13.0,
+          "time": 42.0
+        }
+      ]
+    }
+  },
+  "A3": {
+    "ACC": {
+      "title": "ACC_A3",
+      "steps": [
+        {
+          "step": 1,
+          "volt": 0.0,
+          "time": 2.15
         },
-        "E(1 Push Start)": {
-          "ACC": {
-            "title": "ACC_E(1 Push Start)",
-            "steps": [
-              {"step": 1, "volt": 0.0,  "time": 1.0},
-              {"step": 2, "volt": 14.0, "time": 1.25},
-              {"step": 3, "volt": 0.0,  "time": 1.0},
-              {"step": 4, "volt": 13.0,  "time": 20.0},
-              {"step": 5, "volt": 0.0,  "time": 2.0}
-              
-            ]
-          },
-      
-          "IGN": {
-            "title": "IGN_E(1 Push Start)",
-            "steps": [
-              {"step": 1, "volt": 0.0,  "time": 1.0},
-              {"step": 2, "volt": 14.0, "time": 1.0},
-              {"step": 3, "volt": 10.0, "time": 0.25},
-              {"step": 4, "volt": 0.0, "time": 1,
-              "dc_ramp_start": 10.0,
-                "ac_amp": 2.0,
-                "ac_freq": 50.0,
-                "ac_wave":"SIN"
-            },
-              {"step": 4, "volt": 13.0,  "time": 20.0},
-              {"step": 5, "volt": 0.0,  "time": 2.0}
-            ]
-          },
-      
-          "BATTERY": {
-            "title": "BATTERY_E(1 Push Start)",
-            "steps": [
-              {"step": 1, "volt": 13.0,  "time": 1.0},
-              {"step": 2, "volt": 14.0, "time": 2.25},
-              {"step": 3, "volt": 13.0,  "time": 22.0}
-            ]
-          }
+        {
+          "step": 2,
+          "volt": 12.0,
+          "time": 1.0
         },
-        "D(1 Push Start)": {
-          "ACC": {
-            "title": "ACC_D(1 Push Start)",
-            "steps": [
-              {"step": 1, "volt": 0.0,  "time": 1.0},
-              {"step": 2, "volt": 14.0, "time": 1.25},
-              {"step": 3, "volt": 0.0,  "time": 1.0},
-              {"step": 4, "volt": 13.0,  "time": 20.0},
-              {"step": 5, "volt": 0.0,  "time": 2.0}
-              
-            ]
-          },
-      
-          "IGN": {
-            "title": "IGN_D(1 Push Start)",
-            "steps": [
-              {"step": 1, "volt": 0.0,  "time": 1.0},
-              {"step": 2, "volt": 14.0, "time": 1.0},
-              {"step": 3, "volt": 10.0, "time": 0.25},
-              {"step": 4, "volt": 0.0, "time": 1,
-              "dc_ramp_start": 10.0,
-                "ac_amp": 2.0,
-                "ac_freq": 50.0,
-                "ac_wave":"SIN"
-            },
-              {"step": 4, "volt": 13.0,  "time": 20.0},
-              {"step": 5, "volt": 0.0,  "time": 2.0}
-            ]
-          },
-      
-          "BATTERY": {
-            "title": "BATTERY_D(1 Push Start)",
-            "steps": [
-              {"step": 1, "volt": 13.0,  "time": 1.0},
-              {"step": 2, "volt": 14.0, "time": 2.25},
-              {"step": 3, "volt": 13.0,  "time": 22.0}
-            ]
-          }
+        {
+          "step": 3,
+          "volt": 13.0,
+          "time": 40.0
         },
-        "B": {
-          "ACC": {
-            "title": "ACC_B",
-            "steps": [
-                {"step": 1, "volt": 0.0,  "time": 1},
-                {"step": 2, "volt": 7.0, "time": 0.3},
-                {"step": 3, "volt": 0.0,  "time": 0.3},
-                {"step": 4, "volt": 13.0,  "time": 20.0},
-                {"step": 5, "volt": 0.0,  "time": 2.0}
-            ]
-          },
-     
-          "IGN": {
-            "title": "IGN_B",
-            "steps": [
-              {"step": 1, "volt": 0.0,  "time": 1.0},
-              {"step": 2, "volt": 7.0, "time": 0.6},
-              {"step": 3, "volt": 13.0,  "time": 20.0},
-              {"step": 4, "volt": 0.0,  "time": 2.0}
-            ]
-          },
-     
-          "BATTERY": {
-            "title": "BATTERY_B",
-            "steps": [
-                {"step": 1, "volt": 13.0, "time": 1.0},
-                {"step": 2, "volt": 7.0, "time": 0.6},
-                {"step": 3, "volt": 13.0, "time": 22.0}
-            ]
-          }
-        
-           },
-           "C": {
-            "ACC": {
-              "title": "ACC_C",
-              "steps": [
-                  {"step": 1, "volt": 0.0,  "time": 1.0},
-                  {"step": 2, "volt": 12.0, "time": 4.0},
-                  {"step": 3, "volt": 13.0,  "time": 20.0},
-                  {"step": 4, "volt": 0.0,  "time": 2.0}
-              ]
-            },
-       
-            "IGN": {
-              "title": "IGN_C",
-              "steps": [
-                {"step": 1, "volt": 0.0,  "time": 2.0},
-                {"step": 2, "volt": 12.0, "time": 1.0},
-                {"step": 3, "volt": 0.0,  "time": 1.0},
-                {"step": 4, "volt": 12.0,  "time": 1.0},
-                {"step": 5, "volt": 13.0,  "time": 20.0},
-                {"step": 6, "volt": 0.0,  "time": 2.0}
-              ]
-            },
-       
-            "BATTERY": {
-              "title": "BATTERY_C",
-              "steps": [
-                  {"step": 1, "volt": 13.0, "time": 1.0},
-                  {"step": 2, "volt": 12.0, "time": 4.0},
-                  {"step": 3, "volt": 13.0, "time": 22.0}
-              ]
-            }
-          }
-        } 
-  
+        {
+          "step": 4,
+          "volt": 0.0,
+          "time": 2.0
+        }
+      ]
+    },
+    "IGN": {
+      "title": "IGN_A3",
+      "steps": [
+        {
+          "step": 1,
+          "volt": 0.0,
+          "time": 2.15
+        },
+        {
+          "step": 2,
+          "volt": 12.0,
+          "time": 1.0
+        },
+        {
+          "step": 3,
+          "volt": 13.0,
+          "time": 40.0
+        },
+        {
+          "step": 4,
+          "volt": 0.0,
+          "time": 2.0
+        }
+      ]
+    },
+    "BATTERY": {
+      "title": "BATTERY_A3",
+      "steps": [
+        {
+          "step": 1,
+          "volt": 0.0,
+          "time": 1.0
+        },
+        {
+          "step": 2,
+          "volt": 12.0,
+          "time": 0.1
+        },
+        {
+          "step": 3,
+          "volt": 0.0,
+          "time": 0.05
+        },
+        {
+          "step": 4,
+          "volt": 12.0,
+          "time": 2.0
+        },
+        {
+          "step": 5,
+          "volt": 13.0,
+          "time": 42.0
+        }
+      ]
+    }
+  },
+  "D1": {
+    "BATTERY": {
+      "title": "BATTERY_D1",
+      "steps": [
+        {
+          "step": 1,
+          "volt": 13.0,
+          "time": 1.0
+        },
+        {
+          "step": 2,
+          "volt": 12.0,
+          "time": 1.1
+        },
+        {
+          "step": 3,
+          "volt": 6.5,
+          "time": 7.0,
+          "dc_ramp_start": 5.9,
+          "ac_amp": 0.6,
+          "ac_freq": 30.0,
+          "ac_wave": "SIN"
+        },
+        {
+          "step": 4,
+          "volt": 12.0,
+          "time": 1.0
+        },
+        {
+          "step": 5,
+          "volt": 13.0,
+          "time": 22.0
+        }
+      ]
+    },
+    "IGN": {
+      "title": "IGN1_D1",
+      "steps": [
+        {
+          "step": 1,
+          "volt": 13.0,
+          "time": 1.0
+        },
+        {
+          "step": 2,
+          "volt": 12.0,
+          "time": 1.1
+        },
+        {
+          "step": 3,
+          "volt": 6.5,
+          "time": 7.0,
+          "dc_ramp_start": 5.9,
+          "ac_amp": 0.6,
+          "ac_freq": 30.0,
+          "ac_wave": "SIN"
+        },
+        {
+          "step": 4,
+          "volt": 12.0,
+          "time": 1.0
+        },
+        {
+          "step": 5,
+          "volt": 13.0,
+          "time": 20.0
+        },
+        {
+          "step": 6,
+          "volt": 0.0,
+          "time": 2.0
+        }
+      ]
+    },
+    "ACC": {
+      "title": "ACC_D1",
+      "steps": [
+        {
+          "step": 1,
+          "volt": 0.0,
+          "time": 1.0
+        },
+        {
+          "step": 2,
+          "volt": 12.0,
+          "time": 1.0
+        },
+        {
+          "step": 3,
+          "volt": 0.0,
+          "time": 7.1
+        },
+        {
+          "step": 4,
+          "volt": 13.0,
+          "time": 21.0
+        },
+        {
+          "step": 5,
+          "volt": 0.0,
+          "time": 2.0
+        }
+      ]
+    }
+  },
+  "D2": {
+    "BATTERY": {
+      "title": "BATTERY_D2",
+      "steps": [
+        {
+          "step": 1,
+          "volt": 12.0,
+          "time": 6.0
+        },
+        {
+          "step": 2,
+          "volt": 9.0,
+          "time": 2.0,
+          "dc_ramp_start": 2.0,
+          "ac_amp": 7.0,
+          "ac_freq": 2.0,
+          "ac_wave": "SQU"
+        },
+        {
+          "step": 3,
+          "volt": 9.0,
+          "time": 2.0,
+          "dc_ramp_start": 5.9,
+          "ac_amp": 7.0,
+          "ac_freq": 5.0,
+          "ac_wave": "SQU"
+        },
+        {
+          "step": 4,
+          "volt": 9.0,
+          "time": 2.0,
+          "dc_ramp_start": 2.0,
+          "ac_amp": 7.0,
+          "ac_freq": 10.0,
+          "ac_wave": "SQU"
+        },
+        {
+          "step": 5,
+          "volt": 9.0,
+          "time": 2.0,
+          "dc_ramp_start": 2.0,
+          "ac_amp": 7.0,
+          "ac_freq": 20.0,
+          "ac_wave": "SQU"
+        },
+        {
+          "step": 6,
+          "volt": 12.0,
+          "time": 1.0
+        },
+        {
+          "step": 7,
+          "volt": 13.0,
+          "time": 22.0
+        }
+      ]
+    },
+    "IGN": {
+      "title": "IGN1_D2",
+      "steps": [
+        {
+          "step": 1,
+          "volt": 0.0,
+          "time": 1.0
+        },
+        {
+          "step": 2,
+          "volt": 12.0,
+          "time": 1.0
+        },
+        {
+          "step": 3,
+          "volt": 9.0,
+          "time": 2.0,
+          "dc_ramp_start": 2.0,
+          "ac_amp": 7.0,
+          "ac_freq": 2.0,
+          "ac_wave": "SQU"
+        },
+        {
+          "step": 4,
+          "volt": 9.0,
+          "time": 2.0,
+          "dc_ramp_start": 5.9,
+          "ac_amp": 7.0,
+          "ac_freq": 5.0,
+          "ac_wave": "SQU"
+        },
+        {
+          "step": 5,
+          "volt": 9.0,
+          "time": 2.0,
+          "dc_ramp_start": 2.0,
+          "ac_amp": 7.0,
+          "ac_freq": 10.0,
+          "ac_wave": "SQU"
+        },
+        {
+          "step": 6,
+          "volt": 9.0,
+          "time": 2.0,
+          "dc_ramp_start": 2.0,
+          "ac_amp": 7.0,
+          "ac_freq": 20.0,
+          "ac_wave": "SQU"
+        },
+        {
+          "step": 7,
+          "volt": 12.0,
+          "time": 1.0
+        },
+        {
+          "step": 8,
+          "volt": 13.0,
+          "time": 20.0
+        },
+        {
+          "step": 9,
+          "volt": 0.0,
+          "time": 2.0
+        }
+      ]
+    },
+    "ACC": {
+      "title": "ACC_D2",
+      "steps": [
+        {
+          "step": 1,
+          "volt": 0.0,
+          "time": 1.0
+        },
+        {
+          "step": 2,
+          "volt": 12.0,
+          "time": 5.0
+        },
+        {
+          "step": 3,
+          "volt": 0.0,
+          "time": 8.0
+        },
+        {
+          "step": 4,
+          "volt": 12.0,
+          "time": 1.0
+        },
+        {
+          "step": 5,
+          "volt": 13.0,
+          "time": 20.0
+        },
+        {
+          "step": 6,
+          "volt": 0.0,
+          "time": 2.0
+        }
+      ]
+    }
+  },
+  "D3": {
+    "BATTERY": {
+      "title": "BATTERY_D3",
+      "steps": [
+        {
+          "step": 1,
+          "volt": 13.0,
+          "time": 1.0
+        },
+        {
+          "step": 2,
+          "volt": 12.0,
+          "time": 0.55
+        },
+        {
+          "step": 3,
+          "volt": 12.0,
+          "time": 5.0,
+          "dc_ramp_start": 5.0,
+          "ac_amp": 2.0,
+          "ac_freq": 10.0,
+          "ac_wave": "SIN"
+        },
+        {
+          "step": 4,
+          "volt": 12.0,
+          "time": 1.0
+        },
+        {
+          "step": 5,
+          "volt": 13.0,
+          "time": 22.0
+        }
+      ]
+    },
+    "IGN": {
+      "title": "IGN1_D3",
+      "steps": [
+        {
+          "step": 1,
+          "volt": 13.0,
+          "time": 1.0
+        },
+        {
+          "step": 2,
+          "volt": 12.0,
+          "time": 0.55
+        },
+        {
+          "step": 3,
+          "volt": 12.0,
+          "time": 5.0,
+          "dc_ramp_start": 5.0,
+          "ac_amp": 2.0,
+          "ac_freq": 10.0,
+          "ac_wave": "SIN"
+        },
+        {
+          "step": 4,
+          "volt": 12.0,
+          "time": 1.0
+        },
+        {
+          "step": 5,
+          "volt": 13.0,
+          "time": 20.0
+        },
+        {
+          "step": 6,
+          "volt": 0.0,
+          "time": 2.0
+        }
+      ]
+    },
+    "ACC": {
+      "title": "ACC_D3",
+      "steps": [
+        {
+          "step": 1,
+          "volt": 0.0,
+          "time": 1.0
+        },
+        {
+          "step": 2,
+          "volt": 12.0,
+          "time": 0.5
+        },
+        {
+          "step": 3,
+          "volt": 0.0,
+          "time": 5.05
+        },
+        {
+          "step": 4,
+          "volt": 13.0,
+          "time": 21.0
+        },
+        {
+          "step": 5,
+          "volt": 0.0,
+          "time": 2.0
+        }
+      ]
+    }
+  },
+  "B1(+B)": {
+    "ACC": {
+      "title": "ACC_B1(+B)",
+      "steps": [
+        {
+          "step": 1,
+          "volt": 0.0,
+          "time": 2.15
+        },
+        {
+          "step": 2,
+          "volt": 12.0,
+          "time": 0.6
+        },
+        {
+          "step": 3,
+          "volt": 0.0,
+          "time": 0.3
+        },
+        {
+          "step": 4,
+          "volt": 13.0,
+          "time": 20.0
+        },
+        {
+          "step": 5,
+          "volt": 0.0,
+          "time": 2.0
+        }
+      ]
+    },
+    "IGN": {
+      "title": "IGN_B1(+B)",
+      "steps": [
+        {
+          "step": 1,
+          "volt": 0.0,
+          "time": 1.0
+        },
+        {
+          "step": 2,
+          "volt": 12.0,
+          "time": 1.56
+        },
+        {
+          "step": 3,
+          "volt": 0.0,
+          "time": 0.57
+        },
+        {
+          "step": 4,
+          "volt": 13.0,
+          "time": 20.0
+        },
+        {
+          "step": 5,
+          "volt": 0.0,
+          "time": 2.0
+        }
+      ]
+    },
+    "BATTERY": {
+      "title": "BATTERY_B1(+B)",
+      "steps": [
+        {
+          "step": 1,
+          "volt": 13.0,
+          "time": 1.0
+        },
+        {
+          "step": 2,
+          "volt": 12.0,
+          "time": 2.13
+        },
+        {
+          "step": 3,
+          "volt": 13.0,
+          "time": 22.0
+        }
+      ]
+    }
+  },
+  "A(+B Back Up)": {
+    "ACC": {
+      "title": "ACC_A(+B)",
+      "steps": [
+        {
+          "step": 1,
+          "volt": 0.0,
+          "time": 1.0
+        },
+        {
+          "step": 2,
+          "volt": 12.0,
+          "time": 10.0
+        },
+        {
+          "step": 3,
+          "volt": 0.0,
+          "time": 10.0
+        },
+        {
+          "step": 4,
+          "volt": 13.0,
+          "time": 20.0
+        },
+        {
+          "step": 5,
+          "volt": 0.0,
+          "time": 2.0
+        }
+      ]
+    },
+    "IGN": {
+      "title": "IGN_A(+B)",
+      "steps": [
+        {
+          "step": 1,
+          "volt": 0.0,
+          "time": 1.0
+        },
+        {
+          "step": 2,
+          "volt": 12.0,
+          "time": 12.0
+        },
+        {
+          "step": 3,
+          "volt": 0.0,
+          "time": 10.0
+        },
+        {
+          "step": 4,
+          "volt": 13.0,
+          "time": 20.0
+        },
+        {
+          "step": 5,
+          "volt": 0.0,
+          "time": 2.0
+        }
+      ]
+    },
+    "BATTERY": {
+      "title": "BATTERY_A(+B)",
+      "steps": [
+        {
+          "step": 1,
+          "volt": 13.0,
+          "time": 1.0
+        },
+        {
+          "step": 2,
+          "volt": 12.0,
+          "time": 20.0
+        },
+        {
+          "step": 3,
+          "volt": 13.0,
+          "time": 22.0
+        }
+      ]
+    }
+  },
+  "B2(+B)": {
+    "ACC": {
+      "title": "ACC_B2(+B)",
+      "steps": [
+        {
+          "step": 1,
+          "volt": 0.0,
+          "time": 1.5
+        },
+        {
+          "step": 2,
+          "volt": 12.0,
+          "time": 1.2
+        },
+        {
+          "step": 3,
+          "volt": 12.0,
+          "time": 0.3
+        },
+        {
+          "step": 4,
+          "volt": 13.0,
+          "time": 20.0
+        },
+        {
+          "step": 5,
+          "volt": 0.0,
+          "time": 2.0
+        }
+      ]
+    },
+    "IGN": {
+      "title": "IGN_B2(+B)",
+      "steps": [
+        {
+          "step": 1,
+          "volt": 0.0,
+          "time": 1.0
+        },
+        {
+          "step": 2,
+          "volt": 12.0,
+          "time": 0.525
+        },
+        {
+          "step": 3,
+          "volt": 0.0,
+          "time": 1.195
+        },
+        {
+          "step": 4,
+          "volt": 12.0,
+          "time": 0.28
+        },
+        {
+          "step": 5,
+          "volt": 13.0,
+          "time": 20.0
+        },
+        {
+          "step": 6,
+          "volt": 0.0,
+          "time": 2.0
+        }
+      ]
+    },
+    "BATTERY": {
+      "title": "BATTERY_B2(+B)",
+      "steps": [
+        {
+          "step": 1,
+          "volt": 13.0,
+          "time": 1.0
+        },
+        {
+          "step": 2,
+          "volt": 12.0,
+          "time": 2.0
+        },
+        {
+          "step": 3,
+          "volt": 13.0,
+          "time": 22.0
+        }
+      ]
+    }
+  },
+  "D4": {
+    "ACC": {
+      "title": "ACC_D4",
+      "steps": [
+        {
+          "step": 1,
+          "volt": 0.0,
+          "time": 1.0
+        },
+        {
+          "step": 2,
+          "volt": 12.0,
+          "time": 2.0
+        },
+        {
+          "step": 3,
+          "volt": 0.0,
+          "time": 0.1
+        },
+        {
+          "step": 4,
+          "volt": 12.0,
+          "time": 0.05
+        },
+        {
+          "step": 5,
+          "volt": 0.0,
+          "time": 0.05
+        },
+        {
+          "step": 6,
+          "volt": 0.0,
+          "time": 5.0
+        },
+        {
+          "step": 7,
+          "volt": 12.0,
+          "time": 1.0
+        },
+        {
+          "step": 8,
+          "volt": 13.0,
+          "time": 20.0
+        },
+        {
+          "step": 9,
+          "volt": 0.0,
+          "time": 2.0
+        }
+      ]
+    },
+    "IGN": {
+      "title": "IGN_D4",
+      "steps": [
+        {
+          "step": 1,
+          "volt": 0.0,
+          "time": 1.0
+        },
+        {
+          "step": 2,
+          "volt": 12.0,
+          "time": 2.0
+        },
+        {
+          "step": 3,
+          "volt": 0.0,
+          "time": 0.1
+        },
+        {
+          "step": 4,
+          "volt": 12.0,
+          "time": 0.1
+        },
+        {
+          "step": 5,
+          "volt": 12.0,
+          "time": 5.0,
+          "dc_ramp_start": 5.0,
+          "ac_amp": 2.0,
+          "ac_freq": 10.0,
+          "ac_wave": "SIN"
+        },
+        {
+          "step": 6,
+          "volt": 12.0,
+          "time": 1.0
+        },
+        {
+          "step": 7,
+          "volt": 13.0,
+          "time": 20.0
+        },
+        {
+          "step": 8,
+          "volt": 0.0,
+          "time": 2.0
+        }
+      ]
+    },
+    "BATTERY": {
+      "title": "BATTERY_D4",
+      "steps": [
+        {
+          "step": 1,
+          "volt": 12.0,
+          "time": 3.2
+        },
+        {
+          "step": 2,
+          "volt": 12.0,
+          "time": 2.0,
+          "dc_ramp_start": 5.0,
+          "ac_amp": 2.0,
+          "ac_freq": 10.0,
+          "ac_wave": "SIN"
+        },
+        {
+          "step": 3,
+          "volt": 12.0,
+          "time": 1.0
+        },
+        {
+          "step": 4,
+          "volt": 13.0,
+          "time": 22.0
+        }
+      ]
+    }
+  },
+  "D5": {
+    "ACC": {
+      "title": "ACC_D5",
+      "steps": [
+        {
+          "step": 1,
+          "volt": 0.0,
+          "time": 4.0
+        },
+        {
+          "step": 2,
+          "volt": 12.0,
+          "time": 2.0
+        },
+        {
+          "step": 3,
+          "volt": 0.0,
+          "time": 3.05
+        },
+        {
+          "step": 4,
+          "volt": 12.0,
+          "time": 1.0
+        },
+        {
+          "step": 5,
+          "volt": 13.0,
+          "time": 20.0
+        },
+        {
+          "step": 6,
+          "volt": 0.0,
+          "time": 2.0
+        }
+      ]
+    },
+    "IGN": {
+      "title": "IGN_D5",
+      "steps": [
+        {
+          "step": 1,
+          "volt": 0.0,
+          "time": 4.0
+        },
+        {
+          "step": 2,
+          "volt": 12.0,
+          "time": 2.05
+        },
+        {
+          "step": 3,
+          "volt": 12.0,
+          "time": 3.0,
+          "dc_ramp_start": 5.0,
+          "ac_amp": 2.0,
+          "ac_freq": 10.0,
+          "ac_wave": "SIN"
+        },
+        {
+          "step": 4,
+          "volt": 12.0,
+          "time": 1.0
+        },
+        {
+          "step": 5,
+          "volt": 13.0,
+          "time": 20.0
+        },
+        {
+          "step": 6,
+          "volt": 0.0,
+          "time": 2.0
+        }
+      ]
+    },
+    "BATTERY": {
+      "title": "BATTERY_D5",
+      "steps": [
+        {
+          "step": 1,
+          "volt": 0.0,
+          "time": 1.0
+        },
+        {
+          "step": 2,
+          "volt": 12.0,
+          "time": 5.05
+        },
+        {
+          "step": 3,
+          "volt": 12.0,
+          "time": 3.0,
+          "dc_ramp_start": 5.0,
+          "ac_amp": 2.0,
+          "ac_freq": 10.0,
+          "ac_wave": "SIN"
+        },
+        {
+          "step": 4,
+          "volt": 12.0,
+          "time": 1.0
+        },
+        {
+          "step": 5,
+          "volt": 13.0,
+          "time": 22.0
+        }
+      ]
+    }
+  },
+  "E": {
+    "ACC": {
+      "title": "ACC_E",
+      "steps": [
+        {
+          "step": 1,
+          "volt": 0.0,
+          "time": 1.0
+        },
+        {
+          "step": 2,
+          "volt": 14.0,
+          "time": 1.0
+        },
+        {
+          "step": 3,
+          "volt": 0.0,
+          "time": 1.0
+        },
+        {
+          "step": 4,
+          "volt": 13.0,
+          "time": 20.0
+        },
+        {
+          "step": 5,
+          "volt": 0.0,
+          "time": 2.0
+        }
+      ]
+    },
+    "IGN": {
+      "title": "IGN_E",
+      "steps": [
+        {
+          "step": 1,
+          "volt": 0.0,
+          "time": 1.0
+        },
+        {
+          "step": 2,
+          "volt": 14.0,
+          "time": 1.0
+        },
+        {
+          "step": 3,
+          "volt": 0.0,
+          "time": 1.0,
+          "dc_ramp_start": 10.0,
+          "ac_amp": 2.0,
+          "ac_freq": 50.0,
+          "ac_wave": "SIN"
+        },
+        {
+          "step": 4,
+          "volt": 13.0,
+          "time": 20.0
+        },
+        {
+          "step": 5,
+          "volt": 0.0,
+          "time": 2.0
+        }
+      ]
+    },
+    "BATTERY": {
+      "title": "BATTERY_E",
+      "steps": [
+        {
+          "step": 1,
+          "volt": 13.0,
+          "time": 1.0
+        },
+        {
+          "step": 2,
+          "volt": 14.0,
+          "time": 2.0
+        },
+        {
+          "step": 3,
+          "volt": 13.0,
+          "time": 22.0
+        }
+      ]
+    }
+  },
+  "E(+B Back Up)": {
+    "ACC": {
+      "title": "ACC_E(+B Back Up)",
+      "steps": [
+        {
+          "step": 1,
+          "volt": 0.0,
+          "time": 1.0
+        },
+        {
+          "step": 2,
+          "volt": 14.0,
+          "time": 1.0
+        },
+        {
+          "step": 3,
+          "volt": 0.0,
+          "time": 1.0
+        },
+        {
+          "step": 4,
+          "volt": 13.0,
+          "time": 20.0
+        },
+        {
+          "step": 5,
+          "volt": 0.0,
+          "time": 2.0
+        }
+      ]
+    },
+    "IGN": {
+      "title": "IGN_E(+B Back Up)",
+      "steps": [
+        {
+          "step": 1,
+          "volt": 0.0,
+          "time": 1.0
+        },
+        {
+          "step": 2,
+          "volt": 12.0,
+          "time": 1.0
+        },
+        {
+          "step": 3,
+          "volt": 0.0,
+          "time": 1.0,
+          "dc_ramp_start": 10.0,
+          "ac_amp": 2.0,
+          "ac_freq": 50.0,
+          "ac_wave": "SIN"
+        },
+        {
+          "step": 4,
+          "volt": 13.0,
+          "time": 20.0
+        },
+        {
+          "step": 5,
+          "volt": 0.0,
+          "time": 2.0
+        }
+      ]
+    },
+    "BATTERY": {
+      "title": "BATTERY_E(+B Back Up)",
+      "steps": [
+        {
+          "step": 1,
+          "volt": 13.0,
+          "time": 1.0
+        },
+        {
+          "step": 2,
+          "volt": 14.0,
+          "time": 2.0
+        },
+        {
+          "step": 3,
+          "volt": 13.0,
+          "time": 22.0
+        }
+      ]
+    }
+  },
+  "D(+B Back Up)": {
+    "ACC": {
+      "title": "ACC_D(+B Back Up)",
+      "steps": [
+        {
+          "step": 1,
+          "volt": 0.0,
+          "time": 1.0
+        },
+        {
+          "step": 2,
+          "volt": 12.0,
+          "time": 0.2
+        },
+        {
+          "step": 3,
+          "volt": 0.0,
+          "time": 5.05
+        },
+        {
+          "step": 4,
+          "volt": 13.0,
+          "time": 21.0
+        },
+        {
+          "step": 5,
+          "volt": 0.0,
+          "time": 2.0
+        }
+      ]
+    },
+    "IGN": {
+      "title": "IGN_D(+B Back Up)",
+      "steps": [
+        {
+          "step": 1,
+          "volt": 0.0,
+          "time": 1.0
+        },
+        {
+          "step": 2,
+          "volt": 12.0,
+          "time": 0.25
+        },
+        {
+          "step": 3,
+          "volt": 12.0,
+          "time": 5.0,
+          "dc_ramp_start": 5.0,
+          "ac_amp": 2.0,
+          "ac_freq": 10.0,
+          "ac_wave": "SIN"
+        },
+        {
+          "step": 4,
+          "volt": 12.0,
+          "time": 1.0
+        },
+        {
+          "step": 5,
+          "volt": 13.0,
+          "time": 20.0
+        },
+        {
+          "step": 6,
+          "volt": 0.0,
+          "time": 2.0
+        }
+      ]
+    },
+    "BATTERY": {
+      "title": "BATTERY_D(+B Back Up)",
+      "steps": [
+        {
+          "step": 1,
+          "volt": 13.0,
+          "time": 1.0
+        },
+        {
+          "step": 2,
+          "volt": 12.0,
+          "time": 0.25
+        },
+        {
+          "step": 3,
+          "volt": 12.0,
+          "time": 5.0,
+          "dc_ramp_start": 5.0,
+          "ac_amp": 2.0,
+          "ac_freq": 10.0,
+          "ac_wave": "SIN"
+        },
+        {
+          "step": 4,
+          "volt": 12.0,
+          "time": 1.0
+        },
+        {
+          "step": 5,
+          "volt": 13.0,
+          "time": 22.0
+        }
+      ]
+    }
+  },
+  "E(1 Push Start)": {
+    "ACC": {
+      "title": "ACC_E(1 Push Start)",
+      "steps": [
+        {
+          "step": 1,
+          "volt": 0.0,
+          "time": 1.0
+        },
+        {
+          "step": 2,
+          "volt": 14.0,
+          "time": 1.25
+        },
+        {
+          "step": 3,
+          "volt": 0.0,
+          "time": 1.0
+        },
+        {
+          "step": 4,
+          "volt": 13.0,
+          "time": 20.0
+        },
+        {
+          "step": 5,
+          "volt": 0.0,
+          "time": 2.0
+        }
+      ]
+    },
+    "IGN": {
+      "title": "IGN_E(1 Push Start)",
+      "steps": [
+        {
+          "step": 1,
+          "volt": 0.0,
+          "time": 1.0
+        },
+        {
+          "step": 2,
+          "volt": 14.0,
+          "time": 1.0
+        },
+        {
+          "step": 3,
+          "volt": 10.0,
+          "time": 0.25
+        },
+        {
+          "step": 4,
+          "volt": 0.0,
+          "time": 1,
+          "dc_ramp_start": 10.0,
+          "ac_amp": 2.0,
+          "ac_freq": 50.0,
+          "ac_wave": "SIN"
+        },
+        {
+          "step": 4,
+          "volt": 13.0,
+          "time": 20.0
+        },
+        {
+          "step": 5,
+          "volt": 0.0,
+          "time": 2.0
+        }
+      ]
+    },
+    "BATTERY": {
+      "title": "BATTERY_E(1 Push Start)",
+      "steps": [
+        {
+          "step": 1,
+          "volt": 13.0,
+          "time": 1.0
+        },
+        {
+          "step": 2,
+          "volt": 14.0,
+          "time": 2.25
+        },
+        {
+          "step": 3,
+          "volt": 13.0,
+          "time": 22.0
+        }
+      ]
+    }
+  },
+  "D(1 Push Start)": {
+    "ACC": {
+      "title": "ACC_D(1 Push Start)",
+      "steps": [
+        {
+          "step": 1,
+          "volt": 0.0,
+          "time": 1.0
+        },
+        {
+          "step": 2,
+          "volt": 14.0,
+          "time": 1.25
+        },
+        {
+          "step": 3,
+          "volt": 0.0,
+          "time": 1.0
+        },
+        {
+          "step": 4,
+          "volt": 13.0,
+          "time": 20.0
+        },
+        {
+          "step": 5,
+          "volt": 0.0,
+          "time": 2.0
+        }
+      ]
+    },
+    "IGN": {
+      "title": "IGN_D(1 Push Start)",
+      "steps": [
+        {
+          "step": 1,
+          "volt": 0.0,
+          "time": 1.0
+        },
+        {
+          "step": 2,
+          "volt": 14.0,
+          "time": 1.0
+        },
+        {
+          "step": 3,
+          "volt": 10.0,
+          "time": 0.25
+        },
+        {
+          "step": 4,
+          "volt": 0.0,
+          "time": 1,
+          "dc_ramp_start": 10.0,
+          "ac_amp": 2.0,
+          "ac_freq": 50.0,
+          "ac_wave": "SIN"
+        },
+        {
+          "step": 4,
+          "volt": 13.0,
+          "time": 20.0
+        },
+        {
+          "step": 5,
+          "volt": 0.0,
+          "time": 2.0
+        }
+      ]
+    },
+    "BATTERY": {
+      "title": "BATTERY_D(1 Push Start)",
+      "steps": [
+        {
+          "step": 1,
+          "volt": 13.0,
+          "time": 1.0
+        },
+        {
+          "step": 2,
+          "volt": 14.0,
+          "time": 2.25
+        },
+        {
+          "step": 3,
+          "volt": 13.0,
+          "time": 22.0
+        }
+      ]
+    }
+  },
+  "B": {
+    "ACC": {
+      "title": "ACC_B",
+      "steps": [
+        {
+          "step": 1,
+          "volt": 0.0,
+          "time": 1
+        },
+        {
+          "step": 2,
+          "volt": 7.0,
+          "time": 0.3
+        },
+        {
+          "step": 3,
+          "volt": 0.0,
+          "time": 0.3
+        },
+        {
+          "step": 4,
+          "volt": 13.0,
+          "time": 20.0
+        },
+        {
+          "step": 5,
+          "volt": 0.0,
+          "time": 2.0
+        }
+      ]
+    },
+    "IGN": {
+      "title": "IGN_B",
+      "steps": [
+        {
+          "step": 1,
+          "volt": 0.0,
+          "time": 1.0
+        },
+        {
+          "step": 2,
+          "volt": 7.0,
+          "time": 0.6
+        },
+        {
+          "step": 3,
+          "volt": 13.0,
+          "time": 20.0
+        },
+        {
+          "step": 4,
+          "volt": 0.0,
+          "time": 2.0
+        }
+      ]
+    },
+    "BATTERY": {
+      "title": "BATTERY_B",
+      "steps": [
+        {
+          "step": 1,
+          "volt": 13.0,
+          "time": 1.0
+        },
+        {
+          "step": 2,
+          "volt": 7.0,
+          "time": 0.6
+        },
+        {
+          "step": 3,
+          "volt": 13.0,
+          "time": 22.0
+        }
+      ]
+    }
+  },
+  "C": {
+    "ACC": {
+      "title": "ACC_C",
+      "steps": [
+        {
+          "step": 1,
+          "volt": 0.0,
+          "time": 1.0
+        },
+        {
+          "step": 2,
+          "volt": 12.0,
+          "time": 4.0
+        },
+        {
+          "step": 3,
+          "volt": 13.0,
+          "time": 20.0
+        },
+        {
+          "step": 4,
+          "volt": 0.0,
+          "time": 2.0
+        }
+      ]
+    },
+    "IGN": {
+      "title": "IGN_C",
+      "steps": [
+        {
+          "step": 1,
+          "volt": 0.0,
+          "time": 2.0
+        },
+        {
+          "step": 2,
+          "volt": 12.0,
+          "time": 1.0
+        },
+        {
+          "step": 3,
+          "volt": 0.0,
+          "time": 1.0
+        },
+        {
+          "step": 4,
+          "volt": 12.0,
+          "time": 1.0
+        },
+        {
+          "step": 5,
+          "volt": 13.0,
+          "time": 20.0
+        },
+        {
+          "step": 6,
+          "volt": 0.0,
+          "time": 2.0
+        }
+      ]
+    },
+    "BATTERY": {
+      "title": "BATTERY_C",
+      "steps": [
+        {
+          "step": 1,
+          "volt": 13.0,
+          "time": 1.0
+        },
+        {
+          "step": 2,
+          "volt": 12.0,
+          "time": 4.0
+        },
+        {
+          "step": 3,
+          "volt": 13.0,
+          "time": 22.0
+        }
+      ]
+    }
+  }
+}
