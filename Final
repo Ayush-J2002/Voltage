@@ -24,6 +24,67 @@ from typing import Dict, List
 
 PATTERNS_FILE = "patterns.json"
 
+
+def on_run_clicked(self):
+    if not self.current_pattern_name:
+        messagebox.showwarning("Run", "No pattern selected.")
+        return
+
+    self._sync_entries_to_data()
+    pat_name = self.current_pattern_name
+
+    try:
+        loop_count = int(self.loop_var.get())
+        if loop_count <= 0:
+            raise ValueError
+    except ValueError:
+        messagebox.showerror("Invalid Loop", "Loop count must be a positive integer.")
+        return
+
+    self.status_var.set("Programming devices...")
+    self.run_btn.config(state="disabled")
+
+    def worker():
+        try:
+            # Step 1: Program all devices (NO START)
+            ok = True
+            for dev_name, dev_cfg in TARGETS.items():
+                sub = self.patterns[pat_name].get(dev_name)
+                if not sub:
+                    ok = False
+                    break
+                if not program_device_for_subpattern(
+                    dev_name, dev_cfg, sub, loop_count
+                ):
+                    ok = False
+                    break
+
+            if not ok:
+                self.after(0, lambda: messagebox.showerror(
+                    "Error", "Failed to program one or more devices."
+                ))
+                return
+
+            # Step 2: Ask user confirmation
+            def ask_and_start():
+                ans = messagebox.askyesno(
+                    "Ready to Run",
+                    "Pattern programmed successfully.\n\nClick YES to start all devices."
+                )
+                if ans:
+                    self.status_var.set("Starting all devices...")
+                    start_all_devices_parallel()
+                    self.status_var.set("Pattern running on all devices.")
+                else:
+                    self.status_var.set("Run cancelled by user.")
+
+            self.after(0, ask_and_start)
+
+        finally:
+            self.after(0, lambda: self.run_btn.config(state="normal"))
+
+    threading.Thread(target=worker, daemon=True).start()
+
 # default pattern (can be overridden by command-line arg)
 PATTERN_TO_USE = "A1"
 
