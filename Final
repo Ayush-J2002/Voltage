@@ -1,5 +1,22 @@
 #!/usr/bin/env python3
 # upload.py
+
+def on_stop_clicked(self):
+    self.status_var.set("Stopping all devices...")
+    self.run_btn.config(state="disabled")
+    self.stop_btn.config(state="disabled")
+
+    def worker():
+        try:
+            self.stop_all_devices()
+            self.after(0, lambda: self.status_var.set("All devices stopped."))
+            self.after(0, lambda: messagebox.showinfo("Stopped", "All devices have been stopped."))
+        finally:
+            self.after(0, lambda: self.run_btn.config(state="normal"))
+            self.after(0, lambda: self.stop_btn.config(state="normal"))
+
+    threading.Thread(target=worker, daemon=True).start()
+
 # Upload the named pattern (A1, A2, ...) to ACC / IGN / BATTERY as defined inside patterns.json.
 
 import json, pyvisa, time, sys
