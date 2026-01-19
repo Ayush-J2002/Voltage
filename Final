@@ -3,24 +3,41 @@
 
 def on_stop_clicked(self):
     self.status_var.set("Stopping all devices...")
-    self.run_btn.config(state="disabled")
     self.stop_btn.config(state="disabled")
+    self.run_btn.config(state="disabled")
 
     def worker():
-        try:
-            self.stop_all_devices()
-            self.after(0, lambda: self.status_var.set("All devices stopped."))
-            self.after(0, lambda: messagebox.showinfo("Stopped", "All devices have been stopped."))
-        finally:
-            self.after(0, lambda: self.run_btn.config(state="normal"))
-            self.after(0, lambda: self.stop_btn.config(state="normal"))
+        success = True
+
+        for dev_name, dev_cfg in TARGETS.items():
+            try:
+                inst = open_inst(dev_cfg["resource"])
+                write_and_report(inst, "OUTP OFF", pause=0.05)
+                write_and_report(inst, "ABOR", pause=0.05)
+                inst.close()
+                print(f"{dev_name} stopped.")
+            except Exception as e:
+                print(f"Failed to stop {dev_name}: {e}")
+                success = False
+
+        # UI updates must be on main thread
+        def done():
+            if success:
+                self.status_var.set("All devices stopped successfully.")
+                messagebox.showinfo("Stopped", "All devices stopped successfully.")
+            else:
+                self.status_var.set("Some devices failed to stop.")
+                messagebox.showwarning(
+                    "Warning", "Some devices could not be stopped. Check logs."
+                )
+
+            self.run_btn.config(state="normal")
+            self.stop_btn.config(state="normal")
+
+        self.after(0, done)
 
     threading.Thread(target=worker, daemon=True).start()
 
-# Upload the named pattern (A1, A2, ...) to ACC / IGN / BATTERY as defined inside patterns.json.
-
-import json, pyvisa, time, sys
-from typing import Dict, List
 
 PATTERNS_FILE = "patterns.json"
 
