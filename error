@@ -1,19 +1,31 @@
-D:\OneDrive - KPIT Technologies Ltd\Desktop\Python>python -m pip install Pyinstaller
+D:\OneDrive - KPIT Technologies Ltd\Desktop\Python>"C:\Program Files\Python39\python.exe" -m pip install pyinstaller
 Defaulting to user installation because normal site-packages is not writeable
-Requirement already satisfied: Pyinstaller in c:\users\ayushs3\appdata\roaming\python\python39\site-packages (6.17.0)
-Requirement already satisfied: altgraph in c:\users\ayushs3\appdata\roaming\python\python39\site-packages (from Pyinstaller) (0.17.5)
-Requirement already satisfied: importlib-metadata>=4.6 in c:\users\ayushs3\appdata\roaming\python\python39\site-packages (from Pyinstaller) (8.7.0)
-Requirement already satisfied: packaging>=22.0 in c:\users\ayushs3\appdata\roaming\python\python39\site-packages (from Pyinstaller) (25.0)
-Requirement already satisfied: pefile>=2022.5.30 in c:\users\ayushs3\appdata\roaming\python\python39\site-packages (from Pyinstaller) (2024.8.26)
-Requirement already satisfied: pyinstaller-hooks-contrib>=2025.9 in c:\users\ayushs3\appdata\roaming\python\python39\site-packages (from Pyinstaller) (2025.11)
-Requirement already satisfied: pywin32-ctypes>=0.2.1 in c:\users\ayushs3\appdata\roaming\python\python39\site-packages (from Pyinstaller) (0.2.3)
-Requirement already satisfied: setuptools>=42.0.0 in c:\users\ayushs3\appdata\roaming\python\python39\site-packages (from Pyinstaller) (80.9.0)
-Requirement already satisfied: zipp>=3.20 in c:\users\ayushs3\appdata\roaming\python\python39\site-packages (from importlib-metadata>=4.6->Pyinstaller) (3.23.0)
+Requirement already satisfied: pyinstaller in c:\users\ayushs3\appdata\roaming\python\python39\site-packages (6.17.0)
+Requirement already satisfied: altgraph in c:\users\ayushs3\appdata\roaming\python\python39\site-packages (from pyinstaller) (0.17.5)
+Requirement already satisfied: importlib-metadata>=4.6 in c:\users\ayushs3\appdata\roaming\python\python39\site-packages (from pyinstaller) (8.7.0)
+Requirement already satisfied: packaging>=22.0 in c:\users\ayushs3\appdata\roaming\python\python39\site-packages (from pyinstaller) (25.0)
+Requirement already satisfied: pefile>=2022.5.30 in c:\users\ayushs3\appdata\roaming\python\python39\site-packages (from pyinstaller) (2024.8.26)
+Requirement already satisfied: pyinstaller-hooks-contrib>=2025.9 in c:\users\ayushs3\appdata\roaming\python\python39\site-packages (from pyinstaller) (2025.11)
+Requirement already satisfied: pywin32-ctypes>=0.2.1 in c:\users\ayushs3\appdata\roaming\python\python39\site-packages (from pyinstaller) (0.2.3)
+Requirement already satisfied: setuptools>=42.0.0 in c:\users\ayushs3\appdata\roaming\python\python39\site-packages (from pyinstaller) (80.9.0)
+Requirement already satisfied: zipp>=3.20 in c:\users\ayushs3\appdata\roaming\python\python39\site-packages (from importlib-metadata>=4.6->pyinstaller) (3.23.0)
 
 [notice] A new release of pip is available: 25.2 -> 25.3
 [notice] To update, run: python.exe -m pip install --upgrade pip
 
-D:\OneDrive - KPIT Technologies Ltd\Desktop\Python>python -m Pyinstaller --version  
+D:\OneDrive - KPIT Technologies Ltd\Desktop\Python>"C:\Program Files\Python39\python.exe" -m Pyinstaller --version  
 C:\Program Files\Python39\python.exe: No module named Pyinstaller
 
-D:\OneDrive - KPIT Technologies Ltd\Desktop\Python>
+D:\OneDrive - KPIT Technologies Ltd\Desktop\Python>"C:\Program Files\Python39\python.exe" -m pyinstaller --version
+C:\Program Files\Python39\python.exe: No module named pyinstaller
+
+D:\OneDrive - KPIT Technologies Ltd\Desktop\Python>"c:\users\ayushs3\appdata\roaming\python\python39\site-packages" -m pyinstaller --version
+'"c:\users\ayushs3\appdata\roaming\python\python39\site-packages"' is not recognized as an internal or external command,
+operable program or batch file.
+
+D:\OneDrive - KPIT Technologies Ltd\Desktop\Python>"c:\users\ayushs3\appdata\roaming\python\python39" -m pyinstaller --version              
+'"c:\users\ayushs3\appdata\roaming\python\python39"' is not recognized as an internal or external command,
+operable program or batch file.
+
+D:\OneDrive - KPIT Technologies Ltd\Desktop\Python>where python
+C:\Program Files\Python39\python.exe
